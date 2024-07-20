@@ -1,0 +1,533 @@
+---
+title: "Trematode_Code"
+author: "Femke"
+date: "15 7 2024"
+output: github_document
+---
+
+```{r loading the data, include=FALSE}
+library(rlang)
+library(dplyr)
+library(readr)
+library(ggplot2)
+library(readxl)
+library(ggplot2)
+library(hrbrthemes)
+library(ggpubr)
+library(tidyverse)
+library(MuMIn)
+library(plyr)
+library(ggpubr)
+library(tibble)
+library(rlang)
+library(vctrs)
+library(knitr)
+library(MASS)
+library(vegan)
+library(janitor)
+library(gtsummary)
+library(DHARMa)
+library(ggpubr)
+library(moments)
+library(ltm)
+library(tibble)
+library(VGAM)
+library(xtable)
+
+
+
+setwd("C:/Users/femke/OneDrive/Dokumente/UIT/RMASTER/Trematode_Data")
+ 
+Master_UiT <- read_excel("Master_UiT.xlsx", 
+    sheet = "DissectionSheet", col_types = c("text", 
+        "text", "text", "skip", "text", "text", 
+        "date", "text", "numeric", "text", 
+        "numeric", "numeric", "numeric", 
+        "numeric", "numeric", "numeric", 
+        "numeric", "numeric", "numeric", 
+        "numeric", "numeric", "skip", "skip", 
+        "numeric", "numeric", "numeric", 
+        "skip"))
+
+```
+
+Then I am sub-setting the Data for future analysis:
+measuring infection intensity and prevalence
+-excluding NA´s for all
+-for infection intensity, only infected blue mussel samples will be added to the dataset
+
+-H1+H4 include entire datasets
+-H2 includes only SOM1 and SOM2 throuout all seasons
+-H3 includes only OSM1 and SOM2 during Winter and Fall
+
+#preparing the data
+```{r data preparation, include=FALSE}
+#add Human_influence
+Master_UiT<-Master_UiT %>%
+  mutate(Human_influence =case_when(Location == "SOM1" ~ "low", 
+                              Location == "SOM2" ~ "low",
+                              Location == "SOM3" ~ "high",
+                              Location == "SOM4" ~ "high"))
+
+#sub-setting relevant columns
+subset<-Master_UiT[ , c("Location", "wave_exposure", "intertidal_level", "Human_influence", "Season", "Gymnophallus_sp.", "Renicola_sp.", "Pearls", "Length")]  
+
+
+#exclude NAs
+Master_UiT <- na.omit(subset)
+
+
+#Add binary values for RR/Gymno (1=present; 0=absent)
+Master_UiT$Renicola_sp._Bin<-as.numeric(Master_UiT$Renicola_sp. >0)
+Master_UiT$Gymnophallus_sp._Bin<-as.numeric(Master_UiT$Gymnophallus_sp. >0)
+
+View(Master_UiT)
+
+
+#Prevalence
+
+#Location####
+dfSOM1<-subset(Master_UiT, Location=="SOM1")
+dfSOM2<-subset(Master_UiT, Location=="SOM2")
+dfSOM3<-subset(Master_UiT, Location=="SOM3")
+dfSOM4<-subset(Master_UiT, Location=="SOM4")
+
+dfNatural <-rbind(dfSOM1, dfSOM2)
+
+
+#Zonation####
+dfZonation<-subset(Master_UiT, intertidal_level!="all")
+
+#Infection Intensity
+
+#Excluding all 0 infection values for Infection Intensity
+InfectionIntensity_RR<-subset(Master_UiT, Renicola_sp.!="0")
+InfectionIntensity_Gymno<-subset(Master_UiT, Gymnophallus_sp.!="0")
+
+
+#wave_exposure
+InfectionIntensity_RR_natural<-subset(dfNatural, Renicola_sp.!="0")
+InfectionIntensity_Gymno_natural<-subset(dfNatural, Gymnophallus_sp.!="0")
+
+#intertidal_level
+dfZonation_I_RR<-subset(InfectionIntensity_RR, intertidal_level!="all")
+dfZonation_I_Gymno<-subset(InfectionIntensity_Gymno, intertidal_level!="all")
+```
+
+
+#Infection Intensity for Renicola sp. and Gymnophallus sp. modeled using `VGLM´with a `posnegbinomial()´family function
+
+Hypothesis one: Anthropogenic influence increases Arctic trematode abundance in blue mussels.  
+Hypothesis four: Seasonality affects patterns of Arctic trematode communities in blue mussels, with increases in abundance after infection taking place throughout the vegetative period.
+```{r H1+H4 Infection Intensity}
+ InfectionIntensity_RR$Location <- as.factor(InfectionIntensity_RR$Location)
+InfectionIntensity_RR$Season <- as.factor(InfectionIntensity_RR$Season)
+
+#Renicola sp.
+RR_II_H1<-vglm(Renicola_sp.~ (Location+Season+Length),family = posnegbinomial()
+,data = InfectionIntensity_RR)
+#check diagnostics
+plot(RR_II_H1)
+summary(RR_II_H1)
+#re-level to desired baseline
+InfectionIntensity_RR$Location <- relevel(InfectionIntensity_RR$Location, ref = "SOM1")
+InfectionIntensity_RR$Season <- relevel(InfectionIntensity_RR$Season, ref = "Fall")
+RR_II_H1<-vglm(Renicola_sp.~ (Location+Season+Length),family = posnegbinomial()
+,data = InfectionIntensity_RR)
+summary(RR_II_H1)
+
+#including interactive effects
+RR_II_H1_I<-vglm(Renicola_sp.~ (Location+Season+Length+Location*Season),family = posnegbinomial()
+,data = InfectionIntensity_RR)
+#check diagnostics
+plot(RR_II_H1_I)
+summary(RR_II_H1_I)
+#re-level to desired baseline
+InfectionIntensity_RR$Location <- relevel(InfectionIntensity_RR$Location, ref = "SOM1")
+InfectionIntensity_RR$Season <- relevel(InfectionIntensity_RR$Season, ref = "Fall")
+RR_II_H1_I<-vglm(Renicola_sp.~ (Location+Season+Length+Location*Season),family = posnegbinomial()
+,data = InfectionIntensity_RR)
+summary(RR_II_H1_I)
+
+#Gymnophallus sp.
+Gymno_II_H1<-vglm(Gymnophallus_sp.~ Location+Season+Length,family = posnegbinomial()
+,data = InfectionIntensity_Gymno)
+#check diagnostics
+plot(Gymno_II_H1)
+summary(Gymno_II_H1)
+#re-level to desired baseline
+InfectionIntensity_Gymno$Season <- relevel(InfectionIntensity_Gymno$Season, ref = "Fall")
+InfectionIntensity_Gymno$Location <- relevel(InfectionIntensity_Gymno$Location, ref = "SOM1")
+Gymno_II_H1<-vglm(Gymnophallus_sp.~ Location+Season+Length,family = posnegbinomial()
+,data = InfectionIntensity_Gymno)
+summary(Gymno_II_H1)
+
+#including interactive effects
+Gymno_II_H1_I<-vglm(Gymnophallus_sp.~ Location+Season+Length+Location*Season,family = posnegbinomial()
+,data = InfectionIntensity_Gymno)
+#check diagnostics
+plot(Gymno_II_H1_I)
+summary(Gymno_II_H1_I)
+#re-level to desired baseline
+InfectionIntensity_Gymno$Season <- relevel(InfectionIntensity_Gymno$Season, ref = "Spring")
+InfectionIntensity_Gymno$Location <- relevel(InfectionIntensity_Gymno$Location, ref = "SOM4")
+Gymno_II_H1_I<-vglm(Gymnophallus_sp.~ Location+Season+Length+Location*Season,family = posnegbinomial()
+,data = InfectionIntensity_Gymno)
+summary(Gymno_II_H1_I)
+```
+
+Hypothesis 2: Reduced wave exposure negatively effects abundance of trematodes in blue mussels
+
+```{r , echo=FALSE}
+
+#RR
+InfectionIntensity_RR_natural$Location <- as.factor(InfectionIntensity_RR_natural$Location)
+InfectionIntensity_RR_natural$Season <- as.factor(InfectionIntensity_RR_natural$Season)
+InfectionIntensity_RR_natural$wave_exposure <- as.factor(InfectionIntensity_RR_natural$wave_exposure)
+
+
+RR_II_H2<-vglm(Renicola_sp.~ (wave_exposure+Length),family = posnegbinomial()
+,data = InfectionIntensity_RR_natural)
+#check diagnostics
+plot(RR_II_H2)
+summary(RR_II_H2)
+#re-level to desired baseline
+InfectionIntensity_RR_natural$Season <- relevel(InfectionIntensity_RR_natural$Season, ref = "Fall")
+InfectionIntensity_RR_natural$Location <- relevel(InfectionIntensity_RR_natural$Location, ref = "SOM1")
+InfectionIntensity_RR_natural$wave_exposure <- relevel(InfectionIntensity_RR_natural$wave_exposure, ref = "exposed")
+RR_II_H2<-vglm(Renicola_sp.~ (wave_exposure+Length),family = posnegbinomial()
+,data = InfectionIntensity_RR_natural)
+summary(RR_II_H2)
+
+#including interactive effects
+RR_II_H2_I<-vglm(Renicola_sp.~ wave_exposure+Length+wave_exposure*Location+wave_exposure*Season,family = posnegbinomial(),data = InfectionIntensity_RR_natural)
+#check diagnostics
+plot(RR_II_H2_I)
+summary(RR_II_H2_I)
+#re-level to desired baseline
+InfectionIntensity_RR_natural$Season <- relevel(InfectionIntensity_RR_natural$Season, ref = "Fall")
+InfectionIntensity_RR_natural$Location <- relevel(InfectionIntensity_RR_natural$Location, ref = "SOM1")
+InfectionIntensity_RR_natural$wave_exposure <- relevel(InfectionIntensity_RR_natural$wave_exposure, ref = "sheltered")
+RR_II_H2_I<-vglm(Renicola_sp.~ wave_exposure+Length+wave_exposure*Location+wave_exposure*Season,family = posnegbinomial(),data = InfectionIntensity_RR_natural)
+summary(RR_II_H2_I)
+
+
+
+#Gymnophallus sp.
+
+InfectionIntensity_Gymno_natural$Location <- as.factor(InfectionIntensity_Gymno_natural$Location)
+InfectionIntensity_Gymno_natural$Season <- as.factor(InfectionIntensity_Gymno_natural$Season)
+InfectionIntensity_Gymno_natural$wave_exposure <- as.factor(InfectionIntensity_Gymno_natural$wave_exposure)
+
+Gymno_II_H2<-vglm(Gymnophallus_sp.~ wave_exposure+Length,family = posnegbinomial(), data = InfectionIntensity_Gymno_natural)
+#check diagnostics
+plot(Gymno_II_H2)
+summary(Gymno_II_H2)
+#re-level to desired baseline
+InfectionIntensity_Gymno_natural$Season <- relevel(InfectionIntensity_Gymno_natural$Season, ref = "Fall")
+InfectionIntensity_Gymno_natural$Location <- relevel(InfectionIntensity_Gymno_natural$Location, ref = "SOM1")
+InfectionIntensity_Gymno_natural$wave_exposure <- relevel(InfectionIntensity_Gymno_natural$wave_exposure, ref = "exposed")
+Gymno_II_H2<-vglm(Gymnophallus_sp.~ wave_exposure+Length,family = posnegbinomial(), data = InfectionIntensity_Gymno_natural)
+summary(Gymno_II_H2)
+
+#including interactive effects
+Gymno_II_H2_I<-vglm(Gymnophallus_sp.~ wave_exposure+Length+wave_exposure*Location+wave_exposure*Season,family = posnegbinomial(), data = InfectionIntensity_Gymno_natural)
+#check diagnostics
+plot(Gymno_II_H2_I)
+summary(Gymno_II_H2_I)
+#re-level to desired baseline
+InfectionIntensity_Gymno_natural$Season <- relevel(InfectionIntensity_Gymno_natural$Season, ref = "Fall")
+InfectionIntensity_Gymno_natural$Location <- relevel(InfectionIntensity_Gymno_natural$Location, ref = "SOM1")
+InfectionIntensity_Gymno_natural$wave_exposure <- relevel(InfectionIntensity_Gymno_natural$wave_exposure, ref = "exposed")
+Gymno_II_H2_I<-vglm(Gymnophallus_sp.~ wave_exposure+Length+wave_exposure*Location+wave_exposure*Season,family = posnegbinomial(), data = InfectionIntensity_Gymno_natural)
+summary(Gymno_II_H2_I)
+```
+
+Hypothesis three: Trematodes are distributed along the intertidal zone, according to their final hosts
+```{r , echo=FALSE}
+#RR
+mean(dfZonation_I_RR$Length)
+dfZonation_I_RR$Location <- as.factor(dfZonation_I_RR$Location)
+dfZonation_I_RR$Season <- as.factor(dfZonation_I_RR$Season)
+dfZonation_I_RR$intertidal_level <- as.factor(dfZonation_I_RR$intertidal_level)
+
+
+RR_II_H3<-vglm(Renicola_sp.~ (intertidal_level+Length),family = posnegbinomial()
+,data = dfZonation_I_RR)
+#check diagnostics
+plot(RR_II_H3)
+summary(RR_II_H3)
+#re-level to desired baseline
+dfZonation_I_RR$intertidal_level <- relevel(dfZonation_I_RR$intertidal_level, ref = "high")
+RR_II_H3<-vglm(Renicola_sp.~ intertidal_level+Length+intertidal_level*Location+intertidal_level*Season,family = posnegbinomial()
+,data = dfZonation_I_RR)
+summary(RR_II_H3)
+
+#include interactive effects
+RR_II_H3_I<-vglm(Renicola_sp.~ (intertidal_level+Length+intertidal_level*Location+intertidal_level*Season),family = posnegbinomial()
+,data = dfZonation_I_RR)
+#check diagnostics
+plot(RR_II_H3_I)
+summary(RR_II_H3_I)
+#re-level to desired baseline
+dfZonation_I_RR$Season <- relevel(dfZonation_I_RR$Season, ref = "Fall")
+dfZonation_I_RR$Location <- relevel(dfZonation_I_RR$Location, ref = "SOM1")
+dfZonation_I_RR$intertidal_level <- relevel(dfZonation_I_RR$intertidal_level, ref = "high")
+RR_II_H3<-vglm(Renicola_sp.~ intertidal_level+Length+intertidal_level*Location+intertidal_level*Season,family = posnegbinomial()
+,data = dfZonation_I_RR)
+
+summary(RR_II_H3_I)
+
+
+#Gymnophallus
+
+dfZonation_I_Gymno$Location <- as.factor(dfZonation_I_Gymno$Location)
+dfZonation_I_Gymno$Season <- as.factor(dfZonation_I_Gymno$Season)
+dfZonation_I_Gymno$intertidal_level<- as.factor(dfZonation_I_Gymno$intertidal_level)
+
+Gymno_II_H3<-vglm(Gymnophallus_sp.~ (intertidal_level+Length),family = posnegbinomial(),data = dfZonation_I_Gymno)
+#check diagnostics
+plot(RR_II_H3)
+summary(Gymno_II_H3)
+#re-level to desired baseline
+dfZonation_I_Gymno$Season <- relevel(dfZonation_I_Gymno$Season, ref = "Winter")
+dfZonation_I_Gymno$Location <- relevel(dfZonation_I_Gymno$Location, ref = "SOM2")
+dfZonation_I_Gymno$intertidal_level <- relevel(dfZonation_I_Gymno$intertidal_level, ref = "mid")
+Gymno_II_H3<-vglm(Gymnophallus_sp.~ intertidal_level+Length,family = posnegbinomial()
+,data = dfZonation_I_Gymno)
+summary(Gymno_II_H3)
+
+#include interactive effects
+Gymno_II_H3<-vglm(Gymnophallus_sp.~ (intertidal_level+Length+intertidal_level*Location+intertidal_level*Season),family = posnegbinomial(),data = dfZonation_I_Gymno)
+#check diagnostics
+plot(RR_II_H3)
+summary(Gymno_II_H3)
+#re-level to desired baseline
+dfZonation_I_Gymno$Season <- relevel(dfZonation_I_Gymno$Season, ref = "Winter")
+dfZonation_I_Gymno$Location <- relevel(dfZonation_I_Gymno$Location, ref = "SOM2")
+dfZonation_I_Gymno$intertidal_level <- relevel(dfZonation_I_Gymno$intertidal_level, ref = "mid")
+Gymno_II_H3<-vglm(Gymnophallus_sp.~ intertidal_level+Length+intertidal_level*Location+intertidal_level*Season,family = posnegbinomial()
+,data = dfZonation_I_Gymno)
+summary(Gymno_II_H3)
+
+```
+
+
+
+
+
+#Prevalencefor Renicola sp. and Gymnophallus sp. modeled with the glm function and `binomial´family function 
+
+Hypothesis one: Anthropogenic influence increases Arctic trematode abundance in blue mussels.  
+Hypothesis four: Seasonality affects patterns of Arctic trematode communities in blue mussels, with increases in abundance after infection taking place throughout the vegetative period.
+```{r , echo=FALSE}
+mean(Master_UiT$Length) #29mm
+
+Master_UiT$Location <- as.factor(Master_UiT$Location)
+Master_UiT$Season <- as.factor(Master_UiT$Season)
+
+H1_RR<-glm(Renicola_sp._Bin ~ (Location+Season+Length),family = binomial(link = "logit"),data = Master_UiT)
+#check diagnostics
+a<-simulateResiduals(fittedModel=H1_RR)
+plot(a)
+summary(H1_RR)
+#re-level to desired base
+Master_UiT$Location <- relevel(Master_UiT$Location, ref = "SOM1")
+Master_UiT$Season <- relevel(Master_UiT$Season, ref = "Fall")
+H1_RR<-glm(Renicola_sp._Bin ~ (Location+Season+Length+Location*Season),family = binomial(link = "logit"),data = Master_UiT)
+summary(H1_RR)
+
+#including interactive effects
+H1_RR_I<-glm(Renicola_sp._Bin ~ (Location+Season+Length+Location*Season),family = binomial(link = "logit"),data = Master_UiT)
+#check diagnostics
+a<-simulateResiduals(fittedModel=H1_RR_I)
+plot(a)
+summary(H1_RR_I)
+#re-level to desired base
+Master_UiT$Location <- relevel(Master_UiT$Location, ref = "SOM1")
+Master_UiT$Season <- relevel(Master_UiT$Season, ref = "Fall")
+H1_RR_I<-glm(Renicola_sp._Bin ~ (Location+Season+Length+Location*Season),family = binomial(link = "logit"),data = Master_UiT)
+summary(H1_RR_I)
+
+
+#Gymnophallus sp.
+
+H1_Gymno<-glm(Gymnophallus_sp._Bin ~ (Location+Season+Length),
+                      family = binomial(link = "logit"),data = Master_UiT)
+#check diagnostics
+b<-simulateResiduals(fittedModel=H1_Gymno)
+plot(b)
+summary(H1_Gymno)
+#re-level to desired base 
+Master_UiT$Season <- relevel(Master_UiT$Season, ref = "Fall")
+Master_UiT$Location <- relevel(Master_UiT$Location, ref = "SOM1")
+H1_Gymno<-glm(Gymnophallus_sp._Bin ~ (Location+Season+Length),
+                      family = binomial(link = "logit"),data = Master_UiT)
+summary(H1_Gymno)
+
+#include interactive effects
+H1_Gymno_I<-glm(Gymnophallus_sp._Bin ~ (Location+Season+Length+Location*Season),
+                      family = binomial(link = "logit"),data = Master_UiT)
+#check diagnostics
+b<-simulateResiduals(fittedModel=H1_Gymno_I)
+plot(b)
+summary(H1_Gymno_I)
+#re-level to desired base
+Master_UiT$Season <- relevel(Master_UiT$Season, ref = "Fall")
+Master_UiT$Location <- relevel(Master_UiT$Location, ref = "SOM1")
+H1_Gymno_I<-glm(Gymnophallus_sp._Bin ~ (Location+Season+Length+Location*Season),
+                      family = binomial(link = "logit"),data = Master_UiT)
+summary(H1_Gymno_I)
+
+
+````
+
+Hypothesis two: Reduced wave exposure negatively effects abundance of trematodes in blue mussels
+
+```{r , echo=FALSE}
+#Renicola sp.
+dfNatural$Location <- as.factor(dfNatural$Location)
+dfNatural$Season <- as.factor(dfNatural$Season)
+dfNatural$wave_exposure <- as.factor(dfNatural$wave_exposure)
+
+
+H2_RR<-glm(Renicola_sp._Bin ~ (wave_exposure+Length),
+                     family = binomial(link = "logit"),data = dfNatural)
+#check diagnostics
+a<-simulateResiduals(fittedModel=H2_RR)
+plot(a)
+summary(H2_RR)
+#re-level to desired base 
+dfNatural$Location <- relevel(dfNatural$Location, ref = "SOM1")
+dfNatural$Season <- relevel(dfNatural$Season, ref = "Fall")
+dfNatural$wave_exposure <- relevel(dfNatural$wave_exposure, ref = "sheltered")
+H2_RR<-glm(Renicola_sp._Bin ~ (wave_exposure+Length),family = binomial(link = "logit"),data = dfNatural)
+summary(H2_RR)
+
+#including interactive effects
+H2_RR_I<-glm(Renicola_sp._Bin ~ (wave_exposure+Length+wave_exposure*Season+Location*wave_exposure),
+                     family = binomial(link = "logit"),data = dfNatural)
+#check diagnostics
+a<-simulateResiduals(fittedModel=H2_RR_I)
+plot(a)
+summary(H2_RR_I)
+#re-level to desired base
+dfNatural$Location <- relevel(dfNatural$Location, ref = "SOM1")
+dfNatural$Season <- relevel(dfNatural$Season, ref = "Fall")
+dfNatural$wave_exposure <- relevel(dfNatural$wave_exposure, ref = "exposed")
+H2_RR<-glm(Renicola_sp._Bin ~ (wave_exposure+Length+wave_exposure*Season+Location*wave_exposure),
+                     family = binomial(link = "logit"),data = dfNatural)
+summary(H2_RR_I)
+
+
+
+
+
+#Gymnophallus sp.
+
+H2_Gymno<-glm(Gymnophallus_sp._Bin ~ (wave_exposure+Length),
+                      family = binomial(link = "logit"),data = dfNatural)
+#check diagnostics
+b<-simulateResiduals(fittedModel=H2_Gymno)
+plot(b)
+summary(H2_Gymno)
+#re-level to desired base 
+dfNatural$Location <- relevel(dfNatural$Location, ref = "SOM1")
+dfNatural$Season <- relevel(dfNatural$Season, ref = "Summer")
+dfNatural$wave_exposure <- relevel(dfNatural$wave_exposure, ref = "exposed")
+H2_Gymno<-glm(Gymnophallus_sp._Bin ~ (wave_exposure+Length+wave_exposure*Season+wave_exposure*Location),
+                     family = binomial(link = "logit"),data = dfNatural)
+summary(H2_Gymno)
+
+#including interactive effects
+
+H2_Gymno_I<-glm(Gymnophallus_sp._Bin ~ (wave_exposure+Length+wave_exposure*Location+wave_exposure*Season),
+                      family = binomial(link = "logit"),data = dfNatural)
+#check diagnostics
+b<-simulateResiduals(fittedModel=H2_Gymno_I)
+plot(b)
+summary(H2_Gymno_I)
+#re-level to desired base
+dfNatural$Location <- relevel(dfNatural$Location, ref = "SOM1")
+dfNatural$Season <- relevel(dfNatural$Season, ref = "Fall")
+dfNatural$wave_exposure <- relevel(dfNatural$wave_exposure, ref = "exposed")
+H2_Gymno<-glm(Gymnophallus_sp._Bin ~ (wave_exposure+Length+wave_exposure*Location+wave_exposure*Season),
+                     family = binomial(link = "logit"),data = dfNatural)
+summary(H2_Gymno_I)
+````
+
+
+Hypothesis three: Trematodes are distributed along the intertidal zone, according to their final hosts
+```{r , echo=FALSE}
+#RR
+dfZonation$Location <- as.factor(dfZonation$Location)
+dfZonation$Season <- as.factor(dfZonation$Season)
+dfZonation$intertidal_level <- as.factor(dfZonation$intertidal_level)
+
+
+H3_RR<-glm(formula = Renicola_sp._Bin ~ (intertidal_level+Length), 
+                       family = binomial(link = "logit"), data = dfZonation)
+#check diagnostics
+g<-simulateResiduals(fittedModel=H3_RR)
+plot(g)
+summary(H3_RR)
+#re-level to desired base 
+dfZonation$Season <- relevel(dfZonation$Season, ref = "Fall")
+dfZonation$Location <- relevel(dfZonation$Location, ref = "SOM1")
+dfZonation$intertidal_level <- relevel(dfZonation$intertidal_level, ref = "high")
+H3_RR<-glm(formula = Renicola_sp._Bin ~(intertidal_level+Length), 
+                       family = binomial(link = "logit"), data = dfZonation)
+summary(H3_RR)
+
+
+#include interactive effects
+H3_RR_I<-glm(formula = Renicola_sp._Bin ~ (intertidal_level+Length+intertidal_level*Season+intertidal_level*Location), 
+                       family = binomial(link = "logit"), data = dfZonation)
+#check diagnostics
+g<-simulateResiduals(fittedModel=H3_RR_I)
+plot(g)
+summary(H3_RR_I)
+#re-level to desired base 
+dfZonation$Season <- relevel(dfZonation$Season, ref = "Fall")
+dfZonation$Location <- relevel(dfZonation$Location, ref = "SOM1")
+dfZonation$intertidal_level <- relevel(dfZonation$intertidal_level, ref = "high")
+H3_RR<-glm(formula = Renicola_sp._Bin ~(intertidal_level+Length+intertidal_level*Season+intertidal_level*Location), 
+                       family = binomial(link = "logit"), data = dfZonation)
+summary(H3_RR_I)
+
+
+
+#Gymnophallus sp.
+
+H3_Gymno<-glm(formula = Gymnophallus_sp._Bin ~ (intertidal_level+Length),
+                    family = binomial(link = "logit"), data = dfZonation)
+#check diagnostics
+g<-simulateResiduals(fittedModel=H3_Gymno)
+plot(g)
+summary(H3_Gymno)
+#re-level to desired base 
+dfZonation$Season <- relevel(dfZonation$Season, ref = "Fall")
+dfZonation$Location <- relevel(dfZonation$Location, ref = "SOM1")
+dfZonation$intertidal_level <- relevel(dfZonation$intertidal_level, ref = "high")
+H3_Gymno<-glm(formula = Gymnophallus_sp._Bin ~ (intertidal_level+Length), 
+                       family = binomial(link = "logit"), data = dfZonation)
+summary(H3_Gymno)
+
+
+#include interactive effects
+
+H3_Gymno_I<-glm(formula = Gymnophallus_sp._Bin ~ (intertidal_level+Length+intertidal_level*Season+intertidal_level*Location),
+                    family = binomial(link = "logit"), data = dfZonation)
+#check diagnostics
+g<-simulateResiduals(fittedModel=H3_Gymno_I)
+plot(g)
+summary(H3_Gymno_I)
+#re-level to desired base 
+dfZonation$Season <- relevel(dfZonation$Season, ref = "Fall")
+dfZonation$Location <- relevel(dfZonation$Location, ref = "SOM1")
+dfZonation$intertidal_level <- relevel(dfZonation$intertidal_level, ref = "high")
+H3_Gymno_I<-glm(formula = Gymnophallus_sp._Bin ~ (intertidal_level+Length+intertidal_level*Season+intertidal_level*Location), 
+                       family = binomial(link = "logit"), data = dfZonation)
+summary(H3_Gymno_I)
+````
+
