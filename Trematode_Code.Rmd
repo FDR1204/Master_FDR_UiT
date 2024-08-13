@@ -4,7 +4,7 @@ author: "Femke"
 date: "15 7 2024"
 output: github_document
 ---
-
+#loading the data
 ```{r loading the data, include=FALSE}
 library(rlang)
 library(dplyr)
@@ -54,35 +54,34 @@ Master_UiT <- read_excel("Master_UiT.xlsx",
 Then I am sub-setting the Data for future analysis:
 measuring infection intensity and prevalence
 -excluding NA´s for all
--for infection intensity, only infected blue mussel samples will be added to the dataset
+-for infection intensity, only infected blue mussel infected with the tested trematodes will be added to the dataset
 
--H1+H4 include entire datasets
--H2 includes only SOM1 and SOM2 throuout all seasons
+-H1+H4 include entire data sets
+-H2 includes only SOM1 and SOM2 throughout all seasons
 -H3 includes only OSM1 and SOM2 during Winter and Fall
 
 #preparing the data
 ```{r data preparation, include=FALSE}
 #add Human_influence
-Master_UiT<-Master_UiT %>%
-  mutate(Human_influence =case_when(Location == "SOM1" ~ "low", 
-                              Location == "SOM2" ~ "low",
-                              Location == "SOM3" ~ "high",
-                              Location == "SOM4" ~ "high"))
 
 #sub-setting relevant columns
-subset<-Master_UiT[ , c("Location", "wave_exposure", "intertidal_level", "Human_influence", "Season", "Gymnophallus_sp.", "Renicola_sp.", "Pearls", "Length")]  
+subset<-Master_UiT[ , c("Location", "wave_exposure", "intertidal_level", "Season", "Gymnophallus_sp.", "Renicola_sp.", "Pearls", "Length")]  
 
 
 #exclude NAs
 Master_UiT <- na.omit(subset)
 
 
-#Add binary values for RR/Gymno (1=present; 0=absent)
+#Add binary values for Renicola sp./Gymnophallus sp. (1=present; 0=absent)
 Master_UiT$Renicola_sp._Bin<-as.numeric(Master_UiT$Renicola_sp. >0)
 Master_UiT$Gymnophallus_sp._Bin<-as.numeric(Master_UiT$Gymnophallus_sp. >0)
 
 View(Master_UiT)
 
+dfWinter<-subset(Master_UiT, Season=="Winter")
+dfSpring<-subset(Master_UiT, Season=="Spring")
+dfSummer<-subset(Master_UiT, Season=="Summer")
+dfFall<-subset(Master_UiT, Season=="Fall")
 
 #Prevalence
 
@@ -93,10 +92,21 @@ dfSOM3<-subset(Master_UiT, Location=="SOM3")
 dfSOM4<-subset(Master_UiT, Location=="SOM4")
 
 dfNatural <-rbind(dfSOM1, dfSOM2)
+dfNatural$Location_wave_exposure <- paste(dfNatural$Location, dfNatural$wave_exposure)
+
+dfWinter_natural<-subset(dfNatural, Season=="Winter")
+dfSpring_natural<-subset(dfNatural, Season=="Spring")
+dfSummer_natural<-subset(dfNatural, Season=="Summer")
+dfFall_natural<-subset(dfNatural, Season=="Fall")
 
 
 #Zonation####
 dfZonation<-subset(Master_UiT, intertidal_level!="all")
+dfZonation$Location_intertidal_level <- paste(dfZonation$Location, dfZonation$intertidal_level)
+
+dfWinter_Zonation<-subset(dfZonation, Season=="Winter")
+dfFall_Zonation<-subset(dfZonation, Season=="Fall")
+
 
 #Infection Intensity
 
@@ -112,23 +122,27 @@ InfectionIntensity_Gymno_natural<-subset(dfNatural, Gymnophallus_sp.!="0")
 #intertidal_level
 dfZonation_I_RR<-subset(InfectionIntensity_RR, intertidal_level!="all")
 dfZonation_I_Gymno<-subset(InfectionIntensity_Gymno, intertidal_level!="all")
+
+
 ```
 
 
 #Infection Intensity for Renicola sp. and Gymnophallus sp. modeled using `VGLM´with a `posnegbinomial()´family function
 
-Hypothesis one: Anthropogenic influence increases Arctic trematode abundance in blue mussels.  
-Hypothesis four: Seasonality affects patterns of Arctic trematode communities in blue mussels, with increases in abundance after infection taking place throughout the vegetative period.
-```{r H1+H4 Infection Intensity}
- InfectionIntensity_RR$Location <- as.factor(InfectionIntensity_RR$Location)
+Hypothesis 1: Anthropocentric influence increases Arctic trematode infection intensity in blue mussels.  
+Hypothesis 4: Seasonality affects patterns of Arctic trematode communities in blue mussels, with increases in infection intensity after infection taking place throughout the vegetative period.
+```{r, echo=FALSE}
+InfectionIntensity_RR$Location <- as.factor(InfectionIntensity_RR$Location)
 InfectionIntensity_RR$Season <- as.factor(InfectionIntensity_RR$Season)
 
 #Renicola sp.
+#base model
 RR_II_H1<-vglm(Renicola_sp.~ (Location+Season+Length),family = posnegbinomial()
 ,data = InfectionIntensity_RR)
 #check diagnostics
 plot(RR_II_H1)
 summary(RR_II_H1)
+
 #re-level to desired baseline
 InfectionIntensity_RR$Location <- relevel(InfectionIntensity_RR$Location, ref = "SOM1")
 InfectionIntensity_RR$Season <- relevel(InfectionIntensity_RR$Season, ref = "Fall")
@@ -136,7 +150,7 @@ RR_II_H1<-vglm(Renicola_sp.~ (Location+Season+Length),family = posnegbinomial()
 ,data = InfectionIntensity_RR)
 summary(RR_II_H1)
 
-#including interactive effects
+#including interactive effect of season and location
 RR_II_H1_I<-vglm(Renicola_sp.~ (Location+Season+Length+Location*Season),family = posnegbinomial()
 ,data = InfectionIntensity_RR)
 #check diagnostics
@@ -149,7 +163,12 @@ RR_II_H1_I<-vglm(Renicola_sp.~ (Location+Season+Length+Location*Season),family =
 ,data = InfectionIntensity_RR)
 summary(RR_II_H1_I)
 
+
+
+
+
 #Gymnophallus sp.
+#base model
 Gymno_II_H1<-vglm(Gymnophallus_sp.~ Location+Season+Length,family = posnegbinomial()
 ,data = InfectionIntensity_Gymno)
 #check diagnostics
@@ -162,7 +181,7 @@ Gymno_II_H1<-vglm(Gymnophallus_sp.~ Location+Season+Length,family = posnegbinomi
 ,data = InfectionIntensity_Gymno)
 summary(Gymno_II_H1)
 
-#including interactive effects
+#including interactive effect of season and location
 Gymno_II_H1_I<-vglm(Gymnophallus_sp.~ Location+Season+Length+Location*Season,family = posnegbinomial()
 ,data = InfectionIntensity_Gymno)
 #check diagnostics
@@ -174,18 +193,18 @@ InfectionIntensity_Gymno$Location <- relevel(InfectionIntensity_Gymno$Location, 
 Gymno_II_H1_I<-vglm(Gymnophallus_sp.~ Location+Season+Length+Location*Season,family = posnegbinomial()
 ,data = InfectionIntensity_Gymno)
 summary(Gymno_II_H1_I)
+
 ```
 
-Hypothesis 2: Reduced wave exposure negatively effects abundance of trematodes in blue mussels
+Hypothesis 2: Reduced wave exposure negatively effects infection intensity of trematodes in blue mussels
+```{r ,  echo=FALSE}
 
-```{r , echo=FALSE}
-
-#RR
+#Renicola sp.
 InfectionIntensity_RR_natural$Location <- as.factor(InfectionIntensity_RR_natural$Location)
 InfectionIntensity_RR_natural$Season <- as.factor(InfectionIntensity_RR_natural$Season)
 InfectionIntensity_RR_natural$wave_exposure <- as.factor(InfectionIntensity_RR_natural$wave_exposure)
 
-
+#base model
 RR_II_H2<-vglm(Renicola_sp.~ (wave_exposure+Length),family = posnegbinomial()
 ,data = InfectionIntensity_RR_natural)
 #check diagnostics
@@ -199,7 +218,7 @@ RR_II_H2<-vglm(Renicola_sp.~ (wave_exposure+Length),family = posnegbinomial()
 ,data = InfectionIntensity_RR_natural)
 summary(RR_II_H2)
 
-#including interactive effects
+#including interactive effects of wave exposure:location ans wave exposure:season
 RR_II_H2_I<-vglm(Renicola_sp.~ wave_exposure+Length+wave_exposure*Location+wave_exposure*Season,family = posnegbinomial(),data = InfectionIntensity_RR_natural)
 #check diagnostics
 plot(RR_II_H2_I)
@@ -212,13 +231,13 @@ RR_II_H2_I<-vglm(Renicola_sp.~ wave_exposure+Length+wave_exposure*Location+wave_
 summary(RR_II_H2_I)
 
 
-
 #Gymnophallus sp.
 
 InfectionIntensity_Gymno_natural$Location <- as.factor(InfectionIntensity_Gymno_natural$Location)
 InfectionIntensity_Gymno_natural$Season <- as.factor(InfectionIntensity_Gymno_natural$Season)
 InfectionIntensity_Gymno_natural$wave_exposure <- as.factor(InfectionIntensity_Gymno_natural$wave_exposure)
 
+#base model
 Gymno_II_H2<-vglm(Gymnophallus_sp.~ wave_exposure+Length,family = posnegbinomial(), data = InfectionIntensity_Gymno_natural)
 #check diagnostics
 plot(Gymno_II_H2)
@@ -230,7 +249,7 @@ InfectionIntensity_Gymno_natural$wave_exposure <- relevel(InfectionIntensity_Gym
 Gymno_II_H2<-vglm(Gymnophallus_sp.~ wave_exposure+Length,family = posnegbinomial(), data = InfectionIntensity_Gymno_natural)
 summary(Gymno_II_H2)
 
-#including interactive effects
+#including interactive effects of wave exposure:location ans wave exposure:season
 Gymno_II_H2_I<-vglm(Gymnophallus_sp.~ wave_exposure+Length+wave_exposure*Location+wave_exposure*Season,family = posnegbinomial(), data = InfectionIntensity_Gymno_natural)
 #check diagnostics
 plot(Gymno_II_H2_I)
@@ -241,17 +260,18 @@ InfectionIntensity_Gymno_natural$Location <- relevel(InfectionIntensity_Gymno_na
 InfectionIntensity_Gymno_natural$wave_exposure <- relevel(InfectionIntensity_Gymno_natural$wave_exposure, ref = "exposed")
 Gymno_II_H2_I<-vglm(Gymnophallus_sp.~ wave_exposure+Length+wave_exposure*Location+wave_exposure*Season,family = posnegbinomial(), data = InfectionIntensity_Gymno_natural)
 summary(Gymno_II_H2_I)
+
 ```
 
-Hypothesis three: Trematodes are distributed along the intertidal zone, according to their final hosts
+Hypothesis 3: Trematodes are distributed along the intertidal zone, according to their final hosts
 ```{r , echo=FALSE}
-#RR
+#Renicola sp
 mean(dfZonation_I_RR$Length)
 dfZonation_I_RR$Location <- as.factor(dfZonation_I_RR$Location)
 dfZonation_I_RR$Season <- as.factor(dfZonation_I_RR$Season)
 dfZonation_I_RR$intertidal_level <- as.factor(dfZonation_I_RR$intertidal_level)
 
-
+#base model
 RR_II_H3<-vglm(Renicola_sp.~ (intertidal_level+Length),family = posnegbinomial()
 ,data = dfZonation_I_RR)
 #check diagnostics
@@ -263,7 +283,7 @@ RR_II_H3<-vglm(Renicola_sp.~ intertidal_level+Length+intertidal_level*Location+i
 ,data = dfZonation_I_RR)
 summary(RR_II_H3)
 
-#include interactive effects
+#include interactive effects of intertidal level:season and intertidal level:location
 RR_II_H3_I<-vglm(Renicola_sp.~ (intertidal_level+Length+intertidal_level*Location+intertidal_level*Season),family = posnegbinomial()
 ,data = dfZonation_I_RR)
 #check diagnostics
@@ -279,36 +299,38 @@ RR_II_H3<-vglm(Renicola_sp.~ intertidal_level+Length+intertidal_level*Location+i
 summary(RR_II_H3_I)
 
 
+
 #Gymnophallus
 
 dfZonation_I_Gymno$Location <- as.factor(dfZonation_I_Gymno$Location)
 dfZonation_I_Gymno$Season <- as.factor(dfZonation_I_Gymno$Season)
 dfZonation_I_Gymno$intertidal_level<- as.factor(dfZonation_I_Gymno$intertidal_level)
 
+#base model
 Gymno_II_H3<-vglm(Gymnophallus_sp.~ (intertidal_level+Length),family = posnegbinomial(),data = dfZonation_I_Gymno)
 #check diagnostics
 plot(RR_II_H3)
 summary(Gymno_II_H3)
 #re-level to desired baseline
-dfZonation_I_Gymno$Season <- relevel(dfZonation_I_Gymno$Season, ref = "Winter")
-dfZonation_I_Gymno$Location <- relevel(dfZonation_I_Gymno$Location, ref = "SOM2")
+dfZonation_I_Gymno$Season <- relevel(dfZonation_I_Gymno$Season, ref = "Fall")
+dfZonation_I_Gymno$Location <- relevel(dfZonation_I_Gymno$Location, ref = "SOM1")
 dfZonation_I_Gymno$intertidal_level <- relevel(dfZonation_I_Gymno$intertidal_level, ref = "mid")
 Gymno_II_H3<-vglm(Gymnophallus_sp.~ intertidal_level+Length,family = posnegbinomial()
 ,data = dfZonation_I_Gymno)
 summary(Gymno_II_H3)
 
-#include interactive effects
-Gymno_II_H3<-vglm(Gymnophallus_sp.~ (intertidal_level+Length+intertidal_level*Location+intertidal_level*Season),family = posnegbinomial(),data = dfZonation_I_Gymno)
+#include interactive effects of intertidal level:season and intertidal level:location
+Gymno_II_H3_I<-vglm(Gymnophallus_sp.~ (intertidal_level+Length+intertidal_level*Location+intertidal_level*Season),family = posnegbinomial(),data = dfZonation_I_Gymno)
 #check diagnostics
-plot(RR_II_H3)
-summary(Gymno_II_H3)
+plot(RR_II_H3_I)
+summary(Gymno_II_H3_I)
 #re-level to desired baseline
-dfZonation_I_Gymno$Season <- relevel(dfZonation_I_Gymno$Season, ref = "Winter")
-dfZonation_I_Gymno$Location <- relevel(dfZonation_I_Gymno$Location, ref = "SOM2")
+dfZonation_I_Gymno$Season <- relevel(dfZonation_I_Gymno$Season, ref = "Fall")
+dfZonation_I_Gymno$Location <- relevel(dfZonation_I_Gymno$Location, ref = "SOM1")
 dfZonation_I_Gymno$intertidal_level <- relevel(dfZonation_I_Gymno$intertidal_level, ref = "mid")
-Gymno_II_H3<-vglm(Gymnophallus_sp.~ intertidal_level+Length+intertidal_level*Location+intertidal_level*Season,family = posnegbinomial()
+Gymno_II_H3_I<-vglm(Gymnophallus_sp.~ intertidal_level+Length+intertidal_level*Location+intertidal_level*Season,family = posnegbinomial()
 ,data = dfZonation_I_Gymno)
-summary(Gymno_II_H3)
+summary(Gymno_II_H3_I)
 
 ```
 
@@ -316,16 +338,16 @@ summary(Gymno_II_H3)
 
 
 
-#Prevalencefor Renicola sp. and Gymnophallus sp. modeled with the glm function and `binomial´family function 
+#Prevalence for Renicola sp. and Gymnophallus sp. modeled as a glm function and `binomial´family function 
 
-Hypothesis one: Anthropogenic influence increases Arctic trematode abundance in blue mussels.  
-Hypothesis four: Seasonality affects patterns of Arctic trematode communities in blue mussels, with increases in abundance after infection taking place throughout the vegetative period.
+Hypothesis 1: Anthropogenic influence increases Arctic trematode prevalence in blue mussels.  
+Hypothesis 4: Seasonality affects patterns of Arctic trematode communities in blue mussels, with increases in prevalence after infection taking place throughout the vegetative period.
 ```{r , echo=FALSE}
-mean(Master_UiT$Length) #29mm
-
+#Renicola sp.
 Master_UiT$Location <- as.factor(Master_UiT$Location)
 Master_UiT$Season <- as.factor(Master_UiT$Season)
 
+#base model
 H1_RR<-glm(Renicola_sp._Bin ~ (Location+Season+Length),family = binomial(link = "logit"),data = Master_UiT)
 #check diagnostics
 a<-simulateResiduals(fittedModel=H1_RR)
@@ -337,7 +359,7 @@ Master_UiT$Season <- relevel(Master_UiT$Season, ref = "Fall")
 H1_RR<-glm(Renicola_sp._Bin ~ (Location+Season+Length+Location*Season),family = binomial(link = "logit"),data = Master_UiT)
 summary(H1_RR)
 
-#including interactive effects
+#including interactive effect of season and location
 H1_RR_I<-glm(Renicola_sp._Bin ~ (Location+Season+Length+Location*Season),family = binomial(link = "logit"),data = Master_UiT)
 #check diagnostics
 a<-simulateResiduals(fittedModel=H1_RR_I)
@@ -351,9 +373,8 @@ summary(H1_RR_I)
 
 
 #Gymnophallus sp.
-
-H1_Gymno<-glm(Gymnophallus_sp._Bin ~ (Location+Season+Length),
-                      family = binomial(link = "logit"),data = Master_UiT)
+#base model
+H1_Gymno<-glm(Gymnophallus_sp._Bin ~ (Location+Season+Length),family = binomial(link = "logit"),data = Master_UiT)
 #check diagnostics
 b<-simulateResiduals(fittedModel=H1_Gymno)
 plot(b)
@@ -365,7 +386,7 @@ H1_Gymno<-glm(Gymnophallus_sp._Bin ~ (Location+Season+Length),
                       family = binomial(link = "logit"),data = Master_UiT)
 summary(H1_Gymno)
 
-#include interactive effects
+#include interactive effects of season and location
 H1_Gymno_I<-glm(Gymnophallus_sp._Bin ~ (Location+Season+Length+Location*Season),
                       family = binomial(link = "logit"),data = Master_UiT)
 #check diagnostics
@@ -378,11 +399,9 @@ Master_UiT$Location <- relevel(Master_UiT$Location, ref = "SOM1")
 H1_Gymno_I<-glm(Gymnophallus_sp._Bin ~ (Location+Season+Length+Location*Season),
                       family = binomial(link = "logit"),data = Master_UiT)
 summary(H1_Gymno_I)
-
-
 ````
 
-Hypothesis two: Reduced wave exposure negatively effects abundance of trematodes in blue mussels
+Hypothesis 2: Reduced wave exposure negatively effects prevalence of trematodes in blue mussels
 
 ```{r , echo=FALSE}
 #Renicola sp.
@@ -390,7 +409,7 @@ dfNatural$Location <- as.factor(dfNatural$Location)
 dfNatural$Season <- as.factor(dfNatural$Season)
 dfNatural$wave_exposure <- as.factor(dfNatural$wave_exposure)
 
-
+#base model
 H2_RR<-glm(Renicola_sp._Bin ~ (wave_exposure+Length),
                      family = binomial(link = "logit"),data = dfNatural)
 #check diagnostics
@@ -404,7 +423,7 @@ dfNatural$wave_exposure <- relevel(dfNatural$wave_exposure, ref = "sheltered")
 H2_RR<-glm(Renicola_sp._Bin ~ (wave_exposure+Length),family = binomial(link = "logit"),data = dfNatural)
 summary(H2_RR)
 
-#including interactive effects
+#including interactive effect of wave exposure:season and wave exposure:location
 H2_RR_I<-glm(Renicola_sp._Bin ~ (wave_exposure+Length+wave_exposure*Season+Location*wave_exposure),
                      family = binomial(link = "logit"),data = dfNatural)
 #check diagnostics
@@ -422,9 +441,8 @@ summary(H2_RR_I)
 
 
 
-
 #Gymnophallus sp.
-
+#base model
 H2_Gymno<-glm(Gymnophallus_sp._Bin ~ (wave_exposure+Length),
                       family = binomial(link = "logit"),data = dfNatural)
 #check diagnostics
@@ -439,7 +457,7 @@ H2_Gymno<-glm(Gymnophallus_sp._Bin ~ (wave_exposure+Length+wave_exposure*Season+
                      family = binomial(link = "logit"),data = dfNatural)
 summary(H2_Gymno)
 
-#including interactive effects
+#including interactive effect of wave exposure:season and wave exposure:location
 
 H2_Gymno_I<-glm(Gymnophallus_sp._Bin ~ (wave_exposure+Length+wave_exposure*Location+wave_exposure*Season),
                       family = binomial(link = "logit"),data = dfNatural)
@@ -457,14 +475,14 @@ summary(H2_Gymno_I)
 ````
 
 
-Hypothesis three: Trematodes are distributed along the intertidal zone, according to their final hosts
+Hypothesis 3: Trematodes are distributed along the intertidal zone, according to their final hosts
 ```{r , echo=FALSE}
-#RR
+#Renicola sp.
 dfZonation$Location <- as.factor(dfZonation$Location)
 dfZonation$Season <- as.factor(dfZonation$Season)
 dfZonation$intertidal_level <- as.factor(dfZonation$intertidal_level)
 
-
+#base model
 H3_RR<-glm(formula = Renicola_sp._Bin ~ (intertidal_level+Length), 
                        family = binomial(link = "logit"), data = dfZonation)
 #check diagnostics
@@ -480,7 +498,7 @@ H3_RR<-glm(formula = Renicola_sp._Bin ~(intertidal_level+Length),
 summary(H3_RR)
 
 
-#include interactive effects
+#include interactive effects of inter tidal level:location and intertidal level:season
 H3_RR_I<-glm(formula = Renicola_sp._Bin ~ (intertidal_level+Length+intertidal_level*Season+intertidal_level*Location), 
                        family = binomial(link = "logit"), data = dfZonation)
 #check diagnostics
@@ -498,7 +516,7 @@ summary(H3_RR_I)
 
 
 #Gymnophallus sp.
-
+#base model
 H3_Gymno<-glm(formula = Gymnophallus_sp._Bin ~ (intertidal_level+Length),
                     family = binomial(link = "logit"), data = dfZonation)
 #check diagnostics
@@ -514,7 +532,7 @@ H3_Gymno<-glm(formula = Gymnophallus_sp._Bin ~ (intertidal_level+Length),
 summary(H3_Gymno)
 
 
-#include interactive effects
+#include interactive effects of intertidal level:location and intertidal level:season
 
 H3_Gymno_I<-glm(formula = Gymnophallus_sp._Bin ~ (intertidal_level+Length+intertidal_level*Season+intertidal_level*Location),
                     family = binomial(link = "logit"), data = dfZonation)
@@ -529,5 +547,801 @@ dfZonation$intertidal_level <- relevel(dfZonation$intertidal_level, ref = "high"
 H3_Gymno_I<-glm(formula = Gymnophallus_sp._Bin ~ (intertidal_level+Length+intertidal_level*Season+intertidal_level*Location), 
                        family = binomial(link = "logit"), data = dfZonation)
 summary(H3_Gymno_I)
+
 ````
+
+#Graphs
+Graphs Infection Intensity
+```{r , echo=FALSE}
+#Renicola sp.
+#effects of location
+
+H1RR_base<-ggplot(InfectionIntensity_RR, aes(x=Location, y=Renicola_sp., fill=Location))+geom_jitter(alpha=0.5, size=2,aes(color= Location))+scale_color_manual(values = c("SOM1" = "#D55E00",
+                                "SOM2" = "#0072b2",
+                                "SOM3" = "#f0e442",
+                                "SOM4" = "#009e73"))+ 
+  geom_boxplot(outlier.shape=NA)+ stat_summary(fun.y=mean, geom="point", shape=20, size=5, color="black")+
+theme_classic()+scale_fill_manual(values = c("SOM1" = "#D55E00",
+                                "SOM2" = "#0072b2",
+                                "SOM3" = "#f0e442",
+                                "SOM4" = "#009e73"))+
+ylab(expression("Infection Intensity " ~ italic(Renicola~sp.) ~ (log[10]))) +
+  xlab(expression("Location")) +theme(text = element_text(family = "Arial"))+
+theme(plot.title = element_text(hjust = 0.5))+scale_y_log10()+theme_minimal()+theme(legend.position="none")
+
+#effects of location and season
+InfectionIntensity_RR$Site_Season <- paste(InfectionIntensity_RR$Location,InfectionIntensity_RR$Season)
+
+H1RR_interactive <-ggplot(InfectionIntensity_RR, aes(x=factor(Site_Season, level=c('SOM1 Winter', 'SOM2 Winter', 'SOM3 Winter','SOM4 Winter','SOM1 Spring', 'SOM2 Spring', 'SOM3 Spring','SOM4 Spring', 'SOM1 Summer', 'SOM2 Summer','SOM3 Summer','SOM4 Summer', 'SOM1 Fall', 'SOM2 Fall','SOM3 Fall','SOM4 Fall')), y=Renicola_sp., fill=Location))+geom_jitter(alpha=0.5, size=2,aes(color= Location))+scale_color_manual(values = c("SOM1" = "#D55E00", "SOM2" = "#0072b2",
+                                "SOM3" = "#f0e442",
+                                "SOM4" = "#009e73"))+ 
+  geom_boxplot(outlier.shape=NA)+stat_summary(fun.y=mean, geom="point", shape=20, size=5, color="black")+
+theme_classic()+scale_fill_manual(values = c("SOM1" = "#D55E00",
+                                "SOM2" = "#0072b2",
+                                "SOM3" = "#f0e442",
+                                "SOM4" = "#009e73"))+
+xlab("Location:Season")+ylab(expression("Infection Intensity" ~ italic(Renicola~sp.) ~ (log[10])))+
+theme(plot.title = element_text(hjust = 0.5))+scale_y_log10()+theme_minimal()+theme(plot.title = element_text(hjust = 0.5),
+        axis.text.x = element_text(angle = 45, hjust = 1))+theme(legend.position="none") 
+
+#effects of wave exposure
+H2RR_base<-ggplot(InfectionIntensity_RR_natural, aes(x= wave_exposure, y=Renicola_sp., fill=wave_exposure))+geom_jitter(alpha=0.5, size=2,aes(color= wave_exposure))+scale_color_manual(values = c("exposed" ="#009e73",
+                                "sheltered" = "#e69f00"))+ 
+  geom_boxplot(outlier.shape=NA)+stat_summary(fun.y=mean, geom="point", shape=20, size=5, color="black")+
+theme_minimal()+scale_fill_manual(values = c("exposed" ="#009e73",
+                                "sheltered" = "#e69f00"))+
+xlab("wave exposure")+ylab(expression("Infection Intensity " ~ italic(Renicola~sp.) ~ (log[10])))+
+  theme(plot.title = element_text(hjust = 0.5))+scale_y_log10()+  theme(legend.position="none")
+
+#effects of wave exposure:location and wave exposure:season
+InfectionIntensity_RR_natural$Site_wave_exposure <- paste(InfectionIntensity_RR_natural$Location,InfectionIntensity_RR_natural$wave_exposure)
+
+dfWinter<-subset(InfectionIntensity_RR_natural, Season=="Winter")
+dfSpring<-subset(InfectionIntensity_RR_natural, Season=="Spring")
+dfSummer<-subset(InfectionIntensity_RR_natural, Season=="Summer")
+dfFall<-subset(InfectionIntensity_RR_natural, Season=="Fall")
+
+dfWinter$wave_exposure <- factor(dfWinter$wave_exposure, levels = c("exposed", "sheltered"))
+dfSpring$wave_exposure <- factor(dfSpring$wave_exposure, levels = c("exposed", "sheltered"))
+dfSummer$wave_exposure <- factor(dfSummer$wave_exposure, levels = c("exposed", "sheltered"))
+dfFall$wave_exposure <- factor(dfFall$wave_exposure, levels = c("exposed", "sheltered"))
+
+
+# Create Winter plot
+Winter <- ggplot(dfWinter, aes(x = factor(Site_wave_exposure, levels = c('SOM1 exposed', 'SOM1 sheltered', 'SOM2 exposed', 'SOM2 sheltered')),y= Renicola_sp., fill = wave_exposure)) +
+  geom_jitter(alpha = 0.5, size = 2, aes(color = wave_exposure)) +
+  scale_color_manual(values = c("exposed" = "#009e73", "sheltered" = "#E69f00"),
+                     labels = c("exposed", "sheltered")) +
+  geom_boxplot(outlier.shape = NA) +
+  stat_summary(fun = mean, geom = "point", shape = 20, size = 5, color = "black") +
+  theme_minimal() +  scale_fill_manual(values = c("exposed" = "#009e73", "sheltered" = "#E69f00"),
+                    labels = c("exposed", "sheltered")) +
+  xlab(NULL) +ylab(NULL) +  theme(plot.title = element_text(hjust = 1, vjust = 1, margin = margin(t = 10, r = 10, b = 0, l = 0)),
+        axis.text.x = element_blank(),legend.position = "none") + ggtitle("Winter") + scale_y_log10()
+
+Spring <- ggplot(dfSpring, aes(x = factor(Site_wave_exposure, levels = c('SOM1 exposed', 'SOM1 sheltered', 'SOM2 exposed', 'SOM2 sheltered')),y= Renicola_sp., fill = wave_exposure)) +
+  geom_jitter(alpha = 0.5, size = 2, aes(color = wave_exposure)) +
+  scale_color_manual(values = c("exposed" = "#009e73", "sheltered" = "#e69f00")) +
+  geom_boxplot(outlier.shape = NA) +stat_summary(fun = mean, geom = "point", shape = 20, size = 5, color = "black") +
+  theme_minimal() + scale_fill_manual(values = c("exposed" = "#009e73", "sheltered" = "#e69f00")) +
+  xlab(NULL) +ylab(NULL) +theme(plot.title = element_text(hjust = 1, vjust = 1, margin = margin(t = 10, r = 10, b = 0, l = 0)),
+        axis.text.x = element_blank(),legend.position = "none") + ggtitle("Spring") + scale_y_log10()
+
+Summer <- ggplot(dfSummer, aes(x = factor(Site_wave_exposure, levels = c('SOM1 exposed', 'SOM1 sheltered', 'SOM2 exposed', 'SOM2 sheltered')),y= Renicola_sp., fill = wave_exposure)) +
+  geom_jitter(alpha = 0.5, size = 2, aes(color = wave_exposure)) +
+  scale_color_manual(values = c("exposed" = "#009e73", "sheltered" = "#e69f00"),
+                     labels = c("exposed", "sheltered")) +geom_boxplot(outlier.shape = NA) +
+  stat_summary(fun = mean, geom = "point", shape = 20, size = 5, color = "black") +
+  theme_minimal() + scale_fill_manual(values = c("exposed" = "#009e73", "sheltered" = "#e69f00"),
+                    labels = c("exposed", "sheltered")) + xlab(NULL) +ylab(expression("Infection Intensity " ~ italic(Renicola~sp.) ~ (log[10]))) +  theme(plot.title = element_text(hjust = 1, vjust = 1, margin = margin(t = 10, r = 10, b = 0, l = 0)),
+axis.text.x = element_text(angle = 45, hjust = 1),axis.text.y = element_text(hjust = 1),legend.position = "none") +
+  ggtitle("Summer") + scale_y_log10()
+
+
+Fall <- ggplot(dfFall, aes(x = factor(Site_wave_exposure, levels = c('SOM1 exposed', 'SOM1 sheltered', 'SOM2 exposed', 'SOM2 sheltered')),y= Renicola_sp., fill = wave_exposure)) +
+  geom_jitter(alpha = 0.5, size = 2, aes(color = wave_exposure)) +
+  scale_color_manual(values = c("exposed" = "#009e73", "sheltered" = "#e69f00"),
+                     labels = c("exposed", "sheltered")) +
+  geom_boxplot(outlier.shape = NA) +  stat_summary(fun = mean, geom = "point", shape = 20, size = 5, color = "black") +
+  theme_minimal() +  scale_fill_manual(values = c("exposed" = "#009e73", "sheltered" = "#e69f00"),
+                    labels = c("exposed", "sheltered")) +  xlab(NULL) +  ylab(NULL) +
+  theme(plot.title = element_text(hjust = 1, vjust = 1, margin = margin(t = 10, r = 10, b = 0, l = 0)),
+        axis.text.x = element_text(angle = 45, hjust = 1),legend.position = "none") + ggtitle("Fall") +
+  scale_y_log10()
+
+
+# Combine the plots with a common legend
+H2RR_interactive<-ggarrange(Winter, Spring, Summer, Fall, common.legend = FALSE,  align = "hv")
+
+
+
+#effect of intertidal level
+H3RR_base<-ggplot(dfZonation_I_RR, aes(x=factor(intertidal_level, level=c('low', 'mid', 'high','top')), y=Renicola_sp., fill=intertidal_level))+geom_jitter(alpha=0.5, size=2,aes(color= intertidal_level))+scale_color_manual(values = c("low" = "#009e73", "mid" = "#56b4e9", "high" = "#0072b2", "top" = "#808080"))+ 
+  geom_boxplot(outlier.shape=NA)+stat_summary(fun.y=mean, geom="point", shape=20, size=5, color="black")+
+theme_minimal()+scale_fill_manual(values = c("low" = "#009e73", "mid" = "#56b4e9", "high" = "#0072b2", "top" = "#808080"))+
+xlab("Intertidal level")+ylab(expression("Infection Intensity " ~ italic(Renicola~sp.) ~ (log[10])))+
+theme(plot.title = element_text(hjust = 0.5))+scale_y_log10()+ theme(legend.position="none")
+
+
+#effect of inter tidal level:location and inter tidal level:season
+dfZonation_I_RR$Site_intertidal_level <- paste(dfZonation_I_RR$Location,dfZonation_I_RR$intertidal_level)
+
+dfWinter<-subset(dfZonation_I_RR, Season=="Winter")
+dfFall<-subset(dfZonation_I_RR, Season=="Fall")
+
+dfFall$intertidal_level <- factor(dfFall$intertidal_level, levels = c("low", "mid", "high", "top"))
+dfWinter$intertidal_level <- factor(dfWinter$intertidal_level, levels = c("low", "mid", "high", "top"))
+
+Winter <- ggplot(dfWinter, aes(x = factor(Site_intertidal_level, levels = c('SOM1 low', 'SOM2 low', 'SOM1 mid', 'SOM2 mid', 'SOM1 high', 'SOM2 high', 'SOM1 top', 'SOM2 top')),y= Renicola_sp., fill = intertidal_level)) +
+  geom_jitter(alpha = 0.5, size = 2, aes(color = intertidal_level)) +
+  scale_color_manual(values = c("low" = "#009e73", "mid" = "#56b4e9", "high" = "#0072b2", "top" = "#808080"),
+                     labels = c("low", "mid", "high", "top")) + geom_boxplot(outlier.shape = NA) +
+  stat_summary(fun = mean, geom = "point", shape = 20, size = 5, color = "black") +
+  theme_minimal() + scale_fill_manual(values = c("low" = "#009e73", "mid" = "#56b4e9", "high" = "#0072b2", "top" = "#808080"),
+  labels = c("low", "mid", "high", "top")) +xlab(NULL) +
+  ylab(expression("Infection Intensity " ~ italic(Renicola~sp.) ~ (log[10]))) +
+  theme(plot.title = element_text(hjust = 0.5), axis.text.x = element_text(angle = 45, hjust = 1),
+        legend.position = "none") + scale_y_log10()
+
+Fall <- ggplot(dfFall, aes(x = factor(Site_intertidal_level, levels = c('SOM1 low', 'SOM2 low', 'SOM1 mid', 'SOM2 mid', 'SOM1 high', 'SOM2 high', 'SOM1 top', 'SOM2 top')), y = Renicola_sp., fill = intertidal_level)) +
+  geom_jitter(alpha = 0.5, size = 2, aes(color = intertidal_level)) +
+  scale_color_manual(values = c("low" = "#009e73", "mid" = "#56b4e9", "high" = "#0072b2", "top" = "#808080"),
+                     labels = c("low", "mid", "high", "top")) + geom_boxplot(outlier.shape = NA) +
+  stat_summary(fun = mean, geom = "point", shape = 20, size = 5, color = "black") +
+  theme_minimal() + scale_fill_manual(values = c("low" = "#009e73", "mid" = "#56b4e9", "high" = "#0072b2", "top" = "#808080"),
+                    labels = c("low", "mid", "high", "top")) +xlab(NULL) +ylab(NULL) +
+  theme(plot.title = element_text(hjust = 0.5), axis.text.x = element_text(angle = 45, hjust = 1),
+  axis.text.y = element_blank(),legend.position = "none") + scale_y_log10()
+
+H3RR_interactive<-ggarrange(Winter, Fall, labels = c("Winter", "Fall"),hjust=c(-4.5, -9),
+  common.legend = FALSE, legend = "bottom",align = "hv") 
+
+
+
+#effect of season
+InfectionIntensity_RR$Season <- factor(InfectionIntensity_RR$Season, levels = c("Winter", "Spring", "Summer", "Fall"))
+H4RR_base<-ggplot(InfectionIntensity_RR, aes(x=Season, y=Renicola_sp., fill=Season))+geom_jitter(alpha=0.5, size=2,aes(color= Season))+scale_color_manual(values = c("Winter" = "#56b4e9",
+                                "Spring" = "#e69700",
+                                "Summer" = "#cc79a7",
+                                "Fall" = "#808080"))+ 
+  geom_boxplot(outlier.shape=NA)+ stat_summary(fun.y=mean, geom="point", shape=20, size=5, color="black")+
+theme_classic()+scale_fill_manual(values = c("Winter" = "#56b4e9",
+                                "Spring" = "#e69700",
+                                "Summer" = "#cc79a7",
+                                "Fall" = "#808080"))+
+ylab(expression("Infection Intensity " ~ italic(Renicola~sp.) ~ (log[10]))) +
+  xlab(expression("Season")) +theme(text = element_text(family = "Arial"))+
+theme(plot.title = element_text(hjust = 0.5))+scale_y_log10()+theme_minimal()+ theme(legend.position="none")
+
+
+
+
+#Gymnophallus 
+#effects of location
+H1Gymno_base<-ggplot(InfectionIntensity_Gymno, aes(x=Location, y=Gymnophallus_sp., fill=Location))+geom_jitter(shape=21,colour = "white",alpha=0.5, size=2,aes(color=Location))+scale_color_manual(values = c("SOM1" = "#D55E00","SOM2" = "#0072b2",
+                                "SOM3" = "#f0e442","SOM4" = "#009e73"))+ 
+  geom_boxplot(outlier.shape=NA)+stat_summary(fun.y=mean, geom="point", shape=20, size=5, color="black")+
+theme_minimal()+scale_fill_manual(values = c("SOM1" = "#D55E00","SOM2" = "#0072b2","SOM3" = "#f0e442",
+                                "SOM4" = "#009e73"))+
+ylab(expression("Infection Intensity " ~ italic(Gymnophallus~sp.) ~ (log[10]))) +
+  xlab(expression("Location")) +theme(plot.title = element_text(hjust = 0.5))+  scale_y_log10()+
+  theme(legend.position="none")+  scale_y_log10()
+
+#effect of location and season
+InfectionIntensity_Gymno$Site_Season <- paste(InfectionIntensity_Gymno$Location,InfectionIntensity_Gymno$Season)
+
+H1Gymno_interactive<-ggplot(InfectionIntensity_Gymno, aes(x=factor(Site_Season, level=c('SOM1 Winter', 'SOM2 Winter', 'SOM3 Winter','SOM4 Winter','SOM1 Spring', 'SOM2 Spring', 'SOM3 Spring','SOM4 Spring', 'SOM1 Summer', 'SOM2 Summer','SOM3 Summer','SOM4 Summer', 'SOM1 Fall', 'SOM2 Fall','SOM3 Fall','SOM4 Fall')), y=Gymnophallus_sp., fill=Location))+geom_jitter(alpha=0.5, size=2,aes(color= Location))+scale_color_manual(values = c("SOM1" = "#D55E00","SOM2" = "#0072b2",
+                                "SOM3" = "#f0e442","SOM4" = "#009e73"))+ 
+  geom_boxplot(outlier.shape=NA)+stat_summary(fun.y=mean, geom="point", shape=20, size=5, color="black")+
+theme_classic()+scale_fill_manual(values = c("SOM1" = "#D55E00",
+                                "SOM2" = "#0072b2","SOM3" = "#f0e442",
+                                "SOM4" = "#009e73"))+
+xlab("Location:Season")+ylab(expression("Infection Intensity" ~ italic(Gymnophallus~sp.) ~ (log[10])))+
+theme(plot.title = element_text(hjust = 0.5))+scale_y_log10()+theme_minimal()+theme(plot.title = element_text(hjust = 0.5),
+axis.text.x = element_text(angle = 45, hjust = 1))+ theme(legend.position="none")
+
+#effects of wave exposure:location and wave exposure:season
+InfectionIntensity_Gymno_natural$Site_wave_exposure <- paste(InfectionIntensity_Gymno_natural$Location,InfectionIntensity_Gymno_natural$wave_exposure)
+
+dfWinter<-subset(InfectionIntensity_Gymno_natural, Season=="Winter")
+dfSpring<-subset(InfectionIntensity_Gymno_natural, Season=="Spring")
+dfSummer<-subset(InfectionIntensity_Gymno_natural, Season=="Summer")
+dfFall<-subset(InfectionIntensity_Gymno_natural, Season=="Fall")
+
+dfWinter$wave_exposure <- factor(dfWinter$wave_exposure, levels = c("exposed", "sheltered"))
+dfSpring$wave_exposure <- factor(dfSpring$wave_exposure, levels = c("exposed", "sheltered"))
+dfSummer$wave_exposure <- factor(dfSummer$wave_exposure, levels = c("exposed", "sheltered"))
+dfFall$wave_exposure <- factor(dfFall$wave_exposure, levels = c("exposed", "sheltered"))
+
+
+# Create Winter plot
+Winter <- ggplot(dfWinter, aes(x = factor(Site_wave_exposure, levels = c('SOM1 exposed', 'SOM1 sheltered', 'SOM2 exposed', 'SOM2 sheltered')),y= Gymnophallus_sp., fill = wave_exposure)) +  geom_jitter(alpha = 0.5, size = 2, aes(color = wave_exposure)) +
+  scale_color_manual(values = c("exposed" = "#009e73", "sheltered" = "#E69f00"),labels = c("exposed", "sheltered")) +
+  geom_boxplot(outlier.shape = NA) + stat_summary(fun = mean, geom = "point", shape = 20, size = 5, color = "black") +
+  theme_minimal() + scale_fill_manual(values = c("exposed" = "#009e73", "sheltered" = "#E69f00"),
+  labels = c("exposed", "sheltered")) + xlab(NULL) +  ylab(NULL) +
+  theme(plot.title = element_text(hjust = 1, vjust = 1, margin = margin(t = 10, r = 10, b = 0, l = 0)),
+        axis.text.x = element_blank(),legend.position = "none") +  ggtitle("Winter") +scale_y_log10()
+
+Spring <- ggplot(dfSpring, aes(x = factor(Site_wave_exposure, levels = c('SOM1 exposed', 'SOM1 sheltered', 'SOM2 exposed', 'SOM2 sheltered')),y= Gymnophallus_sp., fill = wave_exposure)) + geom_jitter(alpha = 0.5, size = 2, aes(color = wave_exposure)) +
+  scale_color_manual(values = c("exposed" = "#009e73", "sheltered" = "#e69f00")) +
+  geom_boxplot(outlier.shape = NA) +stat_summary(fun = mean, geom = "point", shape = 20, size = 5, color = "black") +
+  theme_minimal() + scale_fill_manual(values = c("exposed" = "#009e73", "sheltered" = "#e69f00")) +
+  xlab(NULL) + ylab(NULL) + theme(plot.title = element_text(hjust = 1, vjust = 1, margin = margin(t = 10, r = 10, b = 0, l = 0)),
+        axis.text.x = element_blank(),legend.position = "none") + ggtitle("Spring") + scale_y_log10()
+
+Summer <- ggplot(dfSummer, aes(x = factor(Site_wave_exposure, levels = c('SOM1 exposed', 'SOM1 sheltered', 'SOM2 exposed', 'SOM2 sheltered')),y= Gymnophallus_sp., fill = wave_exposure)) + geom_jitter(alpha = 0.5, size = 2, aes(color = wave_exposure)) +
+  scale_color_manual(values = c("exposed" = "#009e73", "sheltered" = "#e69f00"), labels = c("exposed", "sheltered")) +
+  geom_boxplot(outlier.shape = NA) + stat_summary(fun = mean, geom = "point", shape = 20, size = 5, color = "black") +
+  theme_minimal() + scale_fill_manual(values = c("exposed" = "#009e73", "sheltered" = "#e69f00"),
+  labels = c("exposed", "sheltered")) +  xlab(NULL) + ylab(expression("Infection Intensity " ~ italic(Gymnophallus~sp.) ~ (log[10]))) +
+  theme(plot.title = element_text(hjust = 1, vjust = 1, margin = margin(t = 10, r = 10, b = 0, l = 0)),
+    axis.text.x = element_text(angle = 45, hjust = 1),axis.text.y = element_text(hjust = 1),legend.position = "none")  +
+  ggtitle("Summer") +  scale_y_log10()
+
+Fall <- ggplot(dfFall, aes(x = factor(Site_wave_exposure, levels = c('SOM1 exposed', 'SOM1 sheltered', 'SOM2 exposed', 'SOM2 sheltered')),y= Gymnophallus_sp., fill = wave_exposure)) + geom_jitter(alpha = 0.5, size = 2, aes(color = wave_exposure)) +
+  scale_color_manual(values = c("exposed" = "#009e73", "sheltered" = "#e69f00"),labels = c("exposed", "sheltered")) +
+  geom_boxplot(outlier.shape = NA) +stat_summary(fun = mean, geom = "point", shape = 20, size = 5, color = "black") +
+  theme_minimal() + scale_fill_manual(values = c("exposed" = "#009e73", "sheltered" = "#e69f00"),labels = c("exposed", "sheltered")) +
+  xlab(NULL) + ylab(NULL) + theme(plot.title = element_text(hjust = 1, vjust = 1, margin = margin(t = 10, r = 10, b = 0, l = 0)),
+        axis.text.x = element_text(angle = 45, hjust = 1),legend.position = "none") + ggtitle("Fall") + scale_y_log10()
+
+H2Gymno_interactive<-ggarrange(Winter, Spring, Summer, Fall, common.legend = FALSE,  align = "hv")
+
+#effects of inter tidal level
+
+H3Gymno_base<-ggplot(dfZonation_I_Gymno, aes(x=factor(intertidal_level, level=c('low', 'mid', 'high','top')), y=Gymnophallus_sp., fill=intertidal_level))+geom_jitter(alpha=0.5, size=2,aes(color= intertidal_level))+scale_color_manual(values = c("low" = "#009e73", "mid" = "#56b4e9", "high" = "#0072b2", "top" = "#808080"))+
+geom_boxplot(outlier.shape=NA)+stat_summary(fun.y=mean, geom="point", shape=20, size=5, color="black")+
+theme_classic()+ theme(legend.position="none")+scale_fill_manual(values = c("low" = "#009e73", "mid" = "#56b4e9", "high" = "#0072b2", "top" = "#808080"))+xlab("intertidal level")+ylab("Infection Intensity")+ggtitle("Intertidal Gradient(Gymnophallus spp.)")+
+theme(plot.title = element_text(hjust = 0.5))+scale_y_log10()+ theme(legend.position="none")
+
+#effects of inter tidal level:season and inter tidal level:location
+dfZonation_I_Gymno$Site_Position <- paste(dfZonation_I_Gymno$Location,dfZonation_I_Gymno$intertidal_level)
+InfectionIntensity_Gymno_natural$Site_Condition <- paste(InfectionIntensity_Gymno_natural$Location,InfectionIntensity_Gymno_natural$wave_exposure)
+
+dfFall<-subset(dfZonation_I_Gymno, Season=="Fall")
+dfWinter<-subset(dfZonation_I_Gymno, Season=="Winter")
+
+dfFall$Position <- factor(dfFall$intertidal_level, levels = c("low", "mid", "high", "top"))
+dfWinter$Position <- factor(dfWinter$intertidal_level, levels = c("low", "mid", "high", "top"))
+
+# Create Winter plot
+WinterG <- ggplot(dfWinter, aes(x = factor(Site_Position, levels = c('SOM1 low', 'SOM2 low', 'SOM1 mid', 'SOM2 mid', 'SOM1 high', 'SOM2 high', 'SOM1 top', 'SOM2 top')), y = Gymnophallus_sp., fill = intertidal_level)) +
+  geom_jitter(alpha = 0.5, size = 2, aes(color = intertidal_level)) +
+  scale_color_manual(values = c("low" = "#009e73", "mid" = "#56b4e9", "high" = "#0072b2", "top" = "#808080"),
+                     labels = c("low", "mid", "high", "top")) +
+  geom_boxplot(outlier.shape = NA) +stat_summary(fun = mean, geom = "point", shape = 20, size = 5, color = "black") +
+  theme_classic() + scale_fill_manual(values = c("low" = "#009e73", "mid" = "#56b4e9", "high" = "#0072b2", "top" = "#808080"),
+  labels = c("low", "mid", "high", "top")) + xlab(NULL) +theme_minimal()+
+  ylab(expression("Infection Intensity " ~ italic(Gymnophallus~sp.) ~ (log[10]))) +  theme(plot.title = element_text(hjust = 0.5),
+  axis.text.x = element_text(angle = 45, hjust = 1),legend.position = "none") +
+  guides(color = "none", fill = guide_legend(title = "Intertidal Level"))+scale_y_log10()
+
+FallG <- ggplot(dfFall, aes(x = factor(Site_Position, levels = c('SOM1 low', 'SOM2 low', 'SOM1 mid', 'SOM2 mid', 'SOM1 high', 'SOM2 high', 'SOM1 top', 'SOM2 top')),y = Gymnophallus_sp., fill = intertidal_level)) +
+  geom_jitter(alpha = 0.5, size = 2, aes(color = intertidal_level)) + scale_color_manual(values = c("low" = "#009e73", "mid" = "#56b4e9", "high" = "#0072b2", "top" = "#808080"),labels = c("low", "mid", "high", "top")) +
+  geom_boxplot(outlier.shape = NA) +stat_summary(fun = mean, geom = "point", shape = 20, size = 5, color = "black") +
+  theme_classic() + scale_fill_manual(values = c("low" = "#009e73", "mid" = "#56b4e9", "high" = "#0072b2", "top" = "#808080"),
+  labels = c("low", "mid", "high", "top")) + xlab(NULL) + ylab(NULL) +theme_minimal()+
+  theme(plot.title = element_text(hjust = 0.5), axis.text.x = element_text(angle = 45, hjust = 1)) +
+  guides(color = "none", fill = guide_legend(title = "Intertidal Level")) + scale_y_log10()+ theme(legend.position="none")
+
+H3Gymno_interactive<-ggarrange(WinterG, FallG, labels = c("Winter", "Fall"),hjust=c(-3.75, -8),
+  common.legend = FALSE) 
+
+#effects of season
+ InfectionIntensity_Gymno$Season <- factor(InfectionIntensity_Gymno$Season, levels = c("Winter", "Spring", "Summer", "Fall"))
+H4Gymno_base<-ggplot(InfectionIntensity_Gymno, aes(x=Season, y=Gymnophallus_sp., fill=Season))+geom_jitter(shape=21,colour = "white",alpha=0.5, size=2,aes(color= Season))+scale_color_manual(values = c("Winter" = "#56b4e9","Spring" = "#e69700","Summer" = "#cc79a7",
+                                "Fall" = "#808080"))+ 
+  geom_boxplot(outlier.shape=NA)+stat_summary(fun.y=mean, geom="point", shape=20, size=5, color="black")+
+theme_minimal()+scale_fill_manual(values = c("Winter" = "#56b4e9","Spring" = "#e69700","Summer" = "#cc79a7","Fall" = "#808080"))+
+ylab(expression("Infection Intensity " ~ italic(Gymnophallus~sp.) ~ (log[10]))) + xlab(expression("Location")) +
+theme(plot.title = element_text(hjust = 0.5))+  scale_y_log10()+theme(legend.position="none")+  scale_y_log10()
+
+
+
+H1RR_base
+H2RR_base
+H3RR_base
+H4RR_base
+
+
+H1RR_interactive
+H2RR_interactive
+H3RR_interactive 
+
+H1Gymno_base
+H3Gymno_base
+H4Gymno_base
+
+H1Gymno_interactive
+H2Gymno_interactive
+H3Gymno_interactive 
+````
+
+Graphs Infection Prevalence
+```{r , echo=FALSE}
+#Prevalence
+#effect of location
+tabyl(Master_UiT, Renicola_sp._Bin, Location) %>%
+  adorn_percentages("col") %>%
+  adorn_pct_formatting(digits = 2)
+
+dataRRH1 <- data.frame(
+  Location=c("SOM1","SOM2","SOM3","SOM4") ,  
+  Percentage=c(92.24, 94.86, 83.58, 31.36))
+
+H1RRP_base<-ggplot(dataRRH1, aes(x = Location, y = Percentage, fill = Location)) + 
+  geom_bar(stat = "identity") + 
+  scale_fill_manual(values = c("SOM1" = "#D55E00", "SOM2" = "#0072b2", "SOM3" = "#f0e442", "SOM4" = "#009e73")) + 
+  theme_minimal() + 
+  scale_y_continuous(labels = scales::number_format(accuracy = 0.2)) + 
+  geom_text(aes(label = Percentage), vjust = 1.5, colour = "white") + 
+  xlab("Location") + 
+  ylab("Prevalence (%) Renicola sp.") + 
+  theme(plot.title = element_text(hjust = 0.5)) + 
+  theme(legend.position = "none") + ylim(0, 100)
+
+#interactive effects of season and location
+tabyl(dfWinter, Renicola_sp._Bin, Location) %>%
+  adorn_percentages("col") %>%
+  adorn_pct_formatting(digits = 2)
+
+tabyl(dfSpring, Renicola_sp._Bin, Location) %>%
+  adorn_percentages("col") %>%
+  adorn_pct_formatting(digits = 2)
+
+tabyl(dfSummer, Renicola_sp._Bin, Location) %>%
+  adorn_percentages("col") %>%
+  adorn_pct_formatting(digits = 2)
+
+tabyl(dfFall, Renicola_sp._Bin, Location) %>%
+  adorn_percentages("col") %>%
+  adorn_pct_formatting(digits = 2)
+
+dataRRH1W <- data.frame(Location=c("SOM1","SOM2","SOM3","SOM4") ,  
+  Percentage=c(86.05, 94.81, 89.47, 35.42))
+dataRRH1S <- data.frame(Location=c("SOM1","SOM2","SOM3","SOM4") ,  
+  Percentage=c(90.00, 95.45, 78.05, 27.85))
+dataRRH1Z <- data.frame(Location=c("SOM1","SOM2","SOM3","SOM4") ,  
+  Percentage=c(92.41, 95.00, 85.19, 38.27))
+dataRRH1F <- data.frame(Location=c("SOM1","SOM2","SOM3","SOM4") ,  
+  Percentage=c(97.40, 94.58, 84.93, 25.32))
+
+W <- ggplot(dataRRH1W, aes(x = Location, y = Percentage, fill = Location)) + 
+  geom_bar(stat = "identity") + 
+  scale_fill_manual(values = c("SOM1" = "#D55E00", "SOM2" = "#0072b2", 
+                               "SOM3" = "#f0e442", "SOM4" = "#009e73")) +
+  theme_minimal() + 
+  scale_y_continuous(labels = scales::number_format(accuracy = 0.2)) +
+  geom_text(aes(label = Percentage), vjust = 1.5, colour = "white") + 
+  theme(axis.title.x = element_blank(), axis.text.x = element_blank(), 
+        axis.title.y = element_blank(), axis.text.y = element_blank(), 
+        legend.position = "none", 
+        plot.title = element_text(hjust = 1, vjust = 1)) + 
+  ylim(0, 100) + 
+  ggtitle("Winter")
+
+
+S <- ggplot(dataRRH1S, aes(x = Location, y = Percentage, fill = Location)) + 
+  geom_bar(stat = "identity") + 
+  scale_fill_manual(values = c("SOM1" ="#D55E00", "SOM2" ="#0072b2","SOM3" ="#f0e442","SOM4" ="#009e73")) +
+  theme_minimal() + 
+  scale_y_continuous(labels = scales::number_format(accuracy = 0.2)) + 
+  geom_text(aes(label = Percentage), vjust = 1.5, colour = "white") + 
+  theme(axis.title.x = element_blank(), axis.text.x = element_blank(), 
+        axis.title.y = element_blank(), axis.text.y = element_blank(), 
+        legend.position = "none", plot.title = element_text(hjust = 1)) +   ylim(0, 100) + 
+  ggtitle("Spring")
+
+Z <- ggplot(dataRRH1Z, aes(x = Location, y = Percentage, fill = Location)) + 
+  geom_bar(stat = "identity") + scale_fill_manual(values = c("SOM1" = "#D55E00",
+                                "SOM2" = "#0072b2","SOM3" = "#f0e442",
+                                "SOM4" = "#009e73")) +
+  theme_minimal() + scale_y_continuous(labels = scales::number_format(accuracy = 0.2)) +
+  geom_text(aes(label = Percentage), vjust = 1.5, colour = "white") + xlab("Location") +
+  ylab(expression("Prevalence" ~ italic(Renicola~sp.))) + theme(axis.title.x = element_blank(),legend.position = "none",
+    plot.title = element_text(hjust = 1, vjust = 1) ) + ylim(0, 100) + ggtitle("Summer")
+
+
+F <- ggplot(dataRRH1F, aes(x = Location, y = Percentage, fill = Location)) + 
+  geom_bar(stat = "identity") + scale_fill_manual(values = c("SOM1" = "#D55E00",
+                                "SOM2" = "#0072b2", "SOM3" = "#f0e442",
+                                "SOM4" = "#009e73")) +theme_minimal() + 
+  scale_y_continuous(labels = scales::number_format(accuracy = 0.2))+geom_text(aes(label = Percentage), vjust = 1.5, colour = "white") +
+  theme(axis.title.x = element_blank(), axis.title.y = element_blank(), axis.text.y = element_blank(),legend.position = "none",
+    plot.title = element_text(hjust = 1, vjust = 1)) +ylim(0, 100) +ggtitle("Fall")
+
+H1RRP_interactive<-ggarrange(W, S, Z, F, common.legend = FALSE, align = "hv")
+
+#effects of wave exposure
+tabyl(dfNatural, Renicola_sp._Bin, wave_exposure) %>%
+  adorn_percentages("col") %>%
+  adorn_pct_formatting(digits = 2)
+
+dataRRH2 <- data.frame(
+  Site=c("wave exposed","wave sheltered") ,  
+  Percentage=c(91.61, 98.03))
+
+
+H2RRP_base<-ggplot(dataRRH2, aes(x = Site, y = Percentage, fill = Site)) + 
+  geom_bar(stat = "identity") + 
+  scale_fill_manual(values = c("wave exposed" = "#009e73", "wave sheltered" = "#e69f00")) + 
+  theme_minimal() + 
+  scale_y_continuous(labels = scales::number_format(accuracy = 0.2)) + 
+  geom_text(aes(label = Percentage), vjust = 1.5, colour = "white") + 
+  xlab("wave exposure") + 
+  ylab("Prevalence (%)Renicola sp.") + 
+  theme(plot.title = element_text(hjust = 0.5)) + 
+  theme(legend.position = "none") + ylim(0, 100)
+
+#Interactive effects of wave exposure:season and wave exposure:location
+tabyl(dfWinter_natural, Renicola_sp._Bin, Location_wave_exposure) %>%
+  adorn_percentages("col") %>%
+  adorn_pct_formatting(digits = 2)
+
+tabyl(dfSpring_natural, Renicola_sp._Bin, Location_wave_exposure) %>%
+  adorn_percentages("col") %>%
+  adorn_pct_formatting(digits = 2)
+
+tabyl(dfSummer_natural, Renicola_sp._Bin, Location_wave_exposure) %>%
+  adorn_percentages("col") %>%
+  adorn_pct_formatting(digits = 2)
+
+tabyl(dfFall_natural, Renicola_sp._Bin, Location_wave_exposure) %>%
+  adorn_percentages("col") %>%
+  adorn_pct_formatting(digits = 2)
+
+dataRRH2W <- data.frame(Site_Location=c("SOM1 exposed","SOM1 sheltered","SOM2 exposed","SOM2 sheltered") ,  
+  Percentage=c(82.18, 100.00, 95.00, 94.29))
+
+dataRRH2S <- data.frame(Site_Location=c("SOM1 exposed","SOM1 sheltered","SOM2 exposed","SOM2 sheltered") ,  
+  Percentage=c(82.22, 97.78, 95.65, 95.24))
+
+dataRRH2Z <- data.frame(Site_Location=c("SOM1 exposed","SOM1 sheltered","SOM2 exposed","SOM2 sheltered") ,  
+  Percentage=c(87.18, 97.50, 90.00, 100.00))
+
+dataRRH2F <- data.frame(Site_Location=c("SOM1 exposed","SOM1 sheltered","SOM2 exposed","SOM2 sheltered") ,  
+  Percentage=c(96.82, 100.00, 93.25, 100.00))
+
+W <- ggplot(dataRRH2W, aes(x = Site_Location, y = Percentage, fill = Site_Location)) + 
+  geom_bar(stat = "identity") + scale_fill_manual(values = c("SOM1 exposed" = "#009e73", "SOM1 sheltered" = "#e69f00",
+                               "SOM2 exposed" = "#009e73", "SOM2 sheltered" = "#e69f00")) +  theme_minimal() + 
+  scale_y_continuous(labels = scales::number_format(accuracy = 0.2))+geom_text(aes(label = Percentage), vjust = 1.5, colour = "white") +
+  theme(axis.title.x = element_blank(), axis.text.x = element_blank(),axis.title.y = element_blank(), legend.position = "none",
+    plot.title = element_text(hjust = 1, vjust = 1)) + ylim(0, 100) +  ggtitle("Winter")
+
+S <- ggplot(dataRRH2S, aes(x = Site_Location, y = Percentage, fill = Site_Location)) + 
+  geom_bar(stat = "identity") + scale_fill_manual(values = c("SOM1 exposed" = "#009e73", "SOM1 sheltered" = "#e69f00",
+                               "SOM2 exposed" = "#009e73", "SOM2 sheltered" = "#e69f00")) +
+  theme_minimal() + scale_y_continuous(labels = scales::number_format(accuracy = 0.2)) +
+  geom_text(aes(label = Percentage), vjust = 1.5, colour = "white") + theme(axis.title.x = element_blank(), axis.text.x =   element_blank(),axis.title.y = element_blank(), axis.text.y = element_blank(),
+    legend.position = "none", plot.title = element_text(hjust = 1, vjust = 1)) + ylim(0, 100) + ggtitle("Spring")
+
+Z <- ggplot(dataRRH2Z, aes(x = Site_Location, y = Percentage, fill = Site_Location)) + 
+  geom_bar(stat = "identity") + scale_fill_manual(values = c("SOM1 exposed" = "#009e73", "SOM1 sheltered" = "#e69f00",
+                               "SOM2 exposed" = "#009e73", "SOM2 sheltered" = "#e69f00")) +
+  theme_minimal() + scale_y_continuous(labels = scales::number_format(accuracy = 0.2)) +
+  ylab(expression("Prevalence" ~ italic(Renicola~sp.))) + geom_text(aes(label = Percentage), vjust = 1.5, colour = "white") + 
+  theme(axis.title.x = element_blank(),axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1),
+        legend.position = "none", plot.title = element_text(hjust = 1, vjust = 1)) + ylim(0, 100) + ggtitle("Summer")
+
+F <- ggplot(dataRRH2F, aes(x = Site_Location, y = Percentage, fill = Site_Location)) + 
+  geom_bar(stat = "identity") + scale_fill_manual(values = c("SOM1 exposed" = "#009e73", "SOM1 sheltered" = "#e69f00",
+                               "SOM2 exposed" = "#009e73", "SOM2 sheltered" = "#e69f00")) +
+  theme_minimal() + scale_y_continuous(labels = scales::number_format(accuracy = 0.2)) +
+  geom_text(aes(label = Percentage), vjust = 1.5, colour = "white") + theme(axis.title.x = element_blank(), axis.title.y = element_blank(),axis.text.y = element_blank(),axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1), legend.position = "none",
+    plot.title = element_text(hjust = 1, vjust = 1)) + ylim(0, 100) + ggtitle("Fall")
+
+
+H2PRR_interactions<-ggarrange(W, S, Z, F, common.legend = FALSE, align = "hv")
+
+
+#Effects of season for Renicola sp. and Gymnophallus sp. combined
+dataRR_H4 <- data.frame(Season = c("Winter", "Spring", "Summer", "Fall"),
+  PercentageR = c(82.86, 74.04, 77.57, 84.28))
+  
+dataGymno_H4 <- data.frame(Season=c("Winter","Spring","Summer","Fall") ,  
+  PercentageG=c(53.14,49.26,42.68,54.11))
+
+
+modR <- splinefun(seq_along(dataRR_H4$Season), dataRR_H4$PercentageR)
+modG <- splinefun(seq_along(dataGymno_H4$Season), dataGymno_H4$PercentageG)
+
+interpolated_dataR <- data.frame(Season = seq(1, 4, length.out = 100), 
+  PercentageR = modR(seq(1, 4, length.out = 100)))
+interpolated_dataG <- data.frame(Season = seq(1, 4, length.out = 100), 
+  PercentageG = modG(seq(1, 4, length.out = 100)))
+interpolated_dataR <- cbind(interpolated_dataR, PercentageG = interpolated_dataG$PercentageG)
+
+merged_data <- bind_rows(mutate(interpolated_dataR, Percentage = PercentageR, Group = 'PercentageR'),
+  mutate(interpolated_dataG, Percentage = PercentageG, Group = 'PercentageG'))
+
+merged_data <- merged_data[, c('Season', 'Percentage', 'Group')]
+
+interpolated_dataR <- data.frame(Season = seq(1, 4, length.out = 100), 
+  PercentageR = modR(seq(1, 4, length.out = 100)))
+interpolated_dataG <- data.frame(Season = seq(1, 4, length.out = 100), 
+  PercentageG = modG(seq(1, 4, length.out = 100)))
+
+interpolated_dataR <- cbind(interpolated_dataR, PercentageG = interpolated_dataG$PercentageG)
+
+H4P_base<-ggplot() + geom_area(interpolated_dataR,mapping= aes(x = Season, y = PercentageR), fill ="#e69f00")+
+  geom_area(interpolated_dataR,mapping= aes(x=ifelse(Season>2, Season,2), y=PercentageR), fill="grey", alpha=0.4) +
+    geom_segment(aes(x = 2, xend = 2, y = 0, yend = 74.04),linetype = "dashed")+
+   geom_line(data = interpolated_dataR, aes(x = Season, y = PercentageR))+
+  geom_area(interpolated_dataG,mapping= aes(x = Season, y = PercentageG), fill ="#56b4e9")+
+  geom_area(interpolated_dataG,mapping= aes(x=ifelse(Season>3, Season,3), y=PercentageG), fill="grey",alpha=0.4)+
+  geom_line(data = interpolated_dataG, aes(x = Season, y = PercentageG))+
+  labs(x = "Season", y = "Percentage")+ scale_x_continuous(breaks = 1:4, labels = c("Winter", "Spring", "Summer", "Fall")) +
+   scale_y_continuous(limits = c(0, 100))+labs(x = "Season", y = "Prevalence (%)")+
+  geom_segment(aes(x = 3, xend = 3, y = 0, yend = 42.68),linetype = "dashed")+theme_minimal()
+
+
+
+
+#Effect of intertidal level for Renicola sp. and Gymnophallus sp. combined
+
+PositionG <- data.frame(
+  Position=c("low","mid","high","top") ,  
+  PercentageG=c(49.15,56.52,59.56,54.26))
+
+PositionRR <- data.frame(
+  Position=c("low","mid","high","top") ,  
+  PercentageR=c(96.61,95.65,91.18,86.82))
+
+#H3_base
+modR <- splinefun(seq_along(PositionRR$Position), PositionRR$PercentageR)
+modG <- splinefun(seq_along(PositionG$Position), PositionG$PercentageG)
+
+interpolated_dataR <- data.frame(Position = seq(1, 4, length.out = 100), 
+  PercentageR = modR(seq(1, 4, length.out = 100)))
+
+interpolated_dataG <- data.frame(Position = seq(1, 4, length.out = 100), 
+  PercentageG = modG(seq(1, 4, length.out = 100)))
+
+H3P_base<-ggplot() + geom_area(interpolated_dataR,mapping= aes(x = Position, y = PercentageR), fill ="#e69f00")+
+  scale_fill_gradient(low = "#f7f7f7", high = "#a5bd68")+
+   geom_line(data = interpolated_dataR, aes(x = Position, y = PercentageR))+
+  geom_area(interpolated_dataG,mapping= aes(x = Position, y = PercentageG), fill ="#56b4e9")+
+  scale_fill_gradient(low = "#f7f7f7", high = "#316787")+geom_line(data = interpolated_dataG, aes(x = Position, y = PercentageG))+
+  labs(x = "Intertidal level", y = "Percentage")+ scale_x_continuous(breaks = 1:4, labels = c("low","mid","high","top")) +
+   scale_y_continuous(limits = c(0, 100))+labs(x = "Intertidal level", y = "Prevalence (%)")+
+  theme_minimal()
+
+#interactive effects of intertidal level:location and intertidal level:season
+tabyl(dfWinter_Zonation, Renicola_sp._Bin, Location_intertidal_level) %>%
+  adorn_percentages("col") %>% adorn_pct_formatting(digits = 2)
+
+tabyl(dfFall_Zonation, Renicola_sp._Bin, Location_intertidal_level) %>%
+  adorn_percentages("col") %>% adorn_pct_formatting(digits = 2)
+
+dataRRH3W <- data.frame(
+  intertidal_level=c('SOM1 low', 'SOM1 mid','SOM1 high','SOM1 top','SOM2 low', 'SOM2 mid', 'SOM2 high','SOM2 top') ,  
+  Percentage=c(90.00,85.19,96.30,59.26,100.00,100.00,84.62,95.65))
+
+dataRRH3F <- data.frame(
+ intertidal_level=c('SOM1 low', 'SOM1 mid','SOM1 high','SOM1 top','SOM2 low', 'SOM2 mid', 'SOM2 high','SOM2 top') ,  
+  Percentage=c(100.00,100.00,88.37,100.00,95.12,95.00,95.00,88.10))
+
+W <- ggplot(dataRRH3W, aes(x=factor(intertidal_level, level=c('SOM1 low','SOM1 mid','SOM1 high','SOM1 top','SOM2 low','SOM2 mid','SOM2 high','SOM2 top')), y = Percentage, fill = intertidal_level)) + 
+  geom_bar(stat = "identity") + 
+  scale_fill_manual(values = c('SOM1 low'="#009e73",'SOM1 mid'="#56b4e9",'SOM1 high'="#0072b2",'SOM1 top'="#808080",'SOM2 low'="#009e73",'SOM2 mid'="#56b4e9",'SOM2 high'="#0072b2",'SOM2 top'="#808080")) +
+  theme_minimal() + scale_y_continuous(labels = scales::number_format(accuracy = 0.2)) +
+  geom_text(aes(label = Percentage), vjust = 1.5, colour = "white") +
+  theme(axis.title.x = element_blank(),axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1), legend.position = "none",
+    plot.title = element_text(hjust = 1, vjust = 1))  +
+  ylim(0, 100) +ggtitle("Winter")+ ylab(expression("Prevalence" ~ italic(Renicola~sp.)))
+
+
+F <- ggplot(dataRRH3F, aes(x=factor(intertidal_level, level=c('SOM1 low','SOM1 mid','SOM1 high','SOM1 top','SOM2 low','SOM2 mid','SOM2 high','SOM2 top')), y = Percentage, fill = intertidal_level)) + 
+  geom_bar(stat = "identity") + scale_fill_manual(values = c('SOM1 low'="#009e73", 'SOM1 mid'="#56b4e9",'SOM1 high'="#0072b2",'SOM1 top'="#808080",'SOM2 low'="#009e73",'SOM2 mid'="#56b4e9",'SOM2 high'="#0072b2",'SOM2 top'="#808080")) +
+  theme_minimal() + scale_y_continuous(labels = scales::number_format(accuracy = 0.2)) +
+  geom_text(aes(label = Percentage), vjust = 1.5, colour = "white") +
+  theme(axis.title.x = element_blank(), axis.title.y = element_blank(),
+    axis.text.y = element_blank(),axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1), legend.position = "none",
+    plot.title = element_text(hjust = 1, vjust = 1)) + ylim(0, 100) +  ggtitle("Fall")
+
+
+
+H3RRP_interactions<-ggarrange(W, F, common.legend = FALSE, align = "hv")
+
+
+#Gymnophallus sp.
+
+#Effect of location
+tabyl(Master_UiT, Gymnophallus_sp._Bin, Location) %>%
+  adorn_percentages("col") %>%adorn_pct_formatting(digits = 2)
+
+dataGymnoH1 <- data.frame(Location=c("SOM1","SOM2","SOM3","SOM4") ,  
+  Percentage=c(55.92, 48.42, 42.34, 52.61))
+
+H1GymnoP_base<-ggplot(dataGymnoH1, aes(x=Location, y=Percentage, fill=Location)) + 
+  geom_bar(stat = "identity") + scale_fill_manual(values = c("SOM1" = "#D55E00","SOM2" = "#0072b2",
+                                "SOM3" = "#f0e442","SOM4" = "#009e73"))+theme_minimal()+ scale_y_continuous(labels = scales::number_format(accuracy = 0.2))+ geom_text(aes(label = Percentage), vjust = 1.5, colour = "white")+xlab("Location")+ylab("Prevelance (%) Renicola sp.")+  theme(plot.title = element_text(hjust = 0.5))+theme(legend.position="none")+ ylim(0,100)
+
+#interactive effect of season and location
+tabyl(dfWinter, Gymnophallus_sp._Bin, Location) %>%
+  adorn_percentages("col") %>% adorn_pct_formatting(digits = 2)
+
+tabyl(dfSpring, Gymnophallus_sp._Bin, Location) %>%
+  adorn_percentages("col") %>% adorn_pct_formatting(digits = 2)
+
+tabyl(dfSummer, Gymnophallus_sp._Bin, Location) %>%
+  adorn_percentages("col") %>% adorn_pct_formatting(digits = 2)
+
+tabyl(dfFall, Gymnophallus_sp._Bin, Location) %>%
+  adorn_percentages("col") %>% adorn_pct_formatting(digits = 2)
+
+dataGH1W <- data.frame(Location=c("SOM1","SOM2","SOM3","SOM4") ,  
+  Percentage=c(55.81,51.11,47.37,57.25))
+dataGH1S <- data.frame(Location=c("SOM1","SOM2","SOM3","SOM4") ,  
+  Percentage=c(54.44, 36.36, 45.12,62.03))
+dataGH1Z <- data.frame(Location=c("SOM1","SOM2","SOM3","SOM4") ,  
+  Percentage=c(49.37,50.00,35.80,35.80))
+dataGH1F <- data.frame(Location=c("SOM1","SOM2","SOM3","SOM4") ,  
+  Percentage=c(59.38,51.23,43.84,58.23))
+
+W <- ggplot(dataGH1W, aes(x = Location, y = Percentage, fill = Location)) + 
+  geom_bar(stat = "identity") + scale_fill_manual(values = c("SOM1" = "#D55E00",
+                                "SOM2" = "#0072b2","SOM3" = "#f0e442","SOM4" = "#009e73")) +
+  theme_minimal() + scale_y_continuous(labels = scales::number_format(accuracy = 0.2)) +
+  geom_text(aes(label = Percentage), vjust = 1.5, colour = "white") +
+  theme(axis.title.x = element_blank(), axis.text.x = element_blank(),
+        axis.title.y = element_blank(),legend.position = "none", plot.title = element_text(hjust = 1, vjust = 1)) + ylim(0, 100) +
+  ggtitle("Winter")
+
+S <- ggplot(dataGH1S, aes(x = Location, y = Percentage, fill = Location)) + 
+  geom_bar(stat = "identity") + scale_fill_manual(values = c("SOM1" = "#D55E00",
+                                "SOM2" = "#0072b2","SOM3" = "#f0e442","SOM4" = "#009e73")) +
+  theme_minimal() + scale_y_continuous(labels = scales::number_format(accuracy = 0.2)) +
+  geom_text(aes(label = Percentage), vjust = 1.5, colour = "white") +
+  theme(axis.title.x = element_blank(), axis.text.x = element_blank(),
+    axis.title.y = element_blank(), axis.text.y = element_blank(),
+    legend.position = "none",  plot.title = element_text(hjust = 1, vjust = 1)) + ylim(0, 100) + ggtitle("Spring")
+
+Z <- ggplot(dataGH1Z, aes(x = Location, y = Percentage, fill = Location)) + 
+  geom_bar(stat = "identity") + scale_fill_manual(values = c("SOM1" = "#D55E00",
+                                "SOM2" = "#0072b2","SOM3" = "#f0e442",
+                                "SOM4" = "#009e73")) +
+  theme_minimal() + scale_y_continuous(labels = scales::number_format(accuracy = 0.2)) +
+  geom_text(aes(label = Percentage), vjust = 1.5, colour = "white") +
+  xlab("Location") +  ylab(expression("Prevalence" ~ italic(Gymnophallus~sp.))) +
+  theme(axis.title.x = element_blank(), legend.position = "none",
+    plot.title = element_text(hjust = 1, vjust = 1)) +  ylim(0, 100) +  ggtitle("Summer")
+
+F <- ggplot(dataGH1F, aes(x = Location, y = Percentage, fill = Location)) + 
+  geom_bar(stat = "identity") + scale_fill_manual(values = c("SOM1" = "#D55E00",
+                                "SOM2" = "#0072b2","SOM3" = "#f0e442",
+                                "SOM4" = "#009e73")) +
+  theme_minimal() + scale_y_continuous(labels = scales::number_format(accuracy = 0.2)) +
+  geom_text(aes(label = Percentage), vjust = 1.5, colour = "white") +
+  theme(axis.title.x = element_blank(), axis.title.y = element_blank(),
+    axis.text.y = element_blank(),legend.position = "none", plot.title = element_text(hjust = 1, vjust = 1)) +
+  ylim(0, 100) +  ggtitle("Fall")
+
+H1GymnoP_interactive<-ggarrange(W, S, Z, F, common.legend = FALSE, align = "hv")
+
+ 
+#interactive effect of wave exposure:season and wave exposure:location
+tabyl(dfWinter_natural, Gymnophallus_sp._Bin, Location_wave_exposure) %>%
+  adorn_percentages("col") %>%
+  adorn_pct_formatting(digits = 2)
+
+tabyl(dfSpring_natural, Gymnophallus_sp._Bin, Location_wave_exposure) %>%
+  adorn_percentages("col") %>%
+  adorn_pct_formatting(digits = 2)
+
+tabyl(dfSummer_natural, Gymnophallus_sp._Bin, Location_wave_exposure) %>%
+  adorn_percentages("col") %>%
+  adorn_pct_formatting(digits = 2)
+
+tabyl(dfFall_natural, Gymnophallus_sp._Bin, Location_wave_exposure) %>%
+  adorn_percentages("col") %>%
+  adorn_pct_formatting(digits = 2)
+
+dataGH2W <- data.frame(Site_Location=c("SOM1 exposed","SOM1 sheltered","SOM2 exposed","SOM2 sheltered") ,  
+  Percentage=c(56.44, 53.57, 52.00, 48.57))
+
+dataGH2S <- data.frame(Site_Location=c("SOM1 exposed","SOM1 sheltered","SOM2 exposed","SOM2 sheltered") ,  
+  Percentage=c(44.44, 64.44, 47.83, 23.81))
+
+dataGH2Z <- data.frame(Site_Location=c("SOM1 exposed","SOM1 sheltered","SOM2 exposed","SOM2 sheltered") ,  
+  Percentage=c(43.59, 55.00, 62.50, 37.50))
+
+dataGH2F <- data.frame(Site_Location=c("SOM1 exposed","SOM1 sheltered","SOM2 exposed","SOM2 sheltered") ,  
+  Percentage=c(57.96, 65.71, 53.37, 42.50))
+
+W <- ggplot(dataGH2W, aes(x = Site_Location, y = Percentage, fill = Site_Location)) + 
+  geom_bar(stat = "identity") + scale_fill_manual(values = c("SOM1 exposed" = "#009e73", "SOM1 sheltered" = "#e69f00",
+                               "SOM2 exposed" = "#009e73", "SOM2 sheltered" = "#e69f00")) +  theme_minimal() + 
+  scale_y_continuous(labels = scales::number_format(accuracy = 0.2))+geom_text(aes(label = Percentage), vjust = 1.5, colour = "white") +
+  theme(axis.title.x = element_blank(), axis.text.x = element_blank(),axis.title.y = element_blank(), legend.position = "none",
+    plot.title = element_text(hjust = 1, vjust = 1)) + ylim(0, 100) +  ggtitle("Winter")
+
+S <- ggplot(dataGH2S, aes(x = Site_Location, y = Percentage, fill = Site_Location)) + 
+  geom_bar(stat = "identity") + scale_fill_manual(values = c("SOM1 exposed" = "#009e73", "SOM1 sheltered" = "#e69f00",
+                               "SOM2 exposed" = "#009e73", "SOM2 sheltered" = "#e69f00")) +
+  theme_minimal() + scale_y_continuous(labels = scales::number_format(accuracy = 0.2)) +
+  geom_text(aes(label = Percentage), vjust = 1.5, colour = "white") + theme(axis.title.x = element_blank(), axis.text.x =   element_blank(),axis.title.y = element_blank(), axis.text.y = element_blank(),
+    legend.position = "none", plot.title = element_text(hjust = 1, vjust = 1)) + ylim(0, 100) + ggtitle("Spring")
+
+Z <- ggplot(dataGH2Z, aes(x = Site_Location, y = Percentage, fill = Site_Location)) + 
+  geom_bar(stat = "identity") + scale_fill_manual(values = c("SOM1 exposed" = "#009e73", "SOM1 sheltered" = "#e69f00",
+                               "SOM2 exposed" = "#009e73", "SOM2 sheltered" = "#e69f00")) +
+  theme_minimal() + scale_y_continuous(labels = scales::number_format(accuracy = 0.2)) +
+  ylab(expression("Prevalence" ~ italic(Gymnophallus~sp.))) + geom_text(aes(label = Percentage), vjust = 1.5, colour = "white") + 
+  theme(axis.title.x = element_blank(),axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1),
+        legend.position = "none", plot.title = element_text(hjust = 1, vjust = 1)) + ylim(0, 100) + ggtitle("Summer")
+
+F <- ggplot(dataGH2F, aes(x = Site_Location, y = Percentage, fill = Site_Location)) + 
+  geom_bar(stat = "identity") + scale_fill_manual(values = c("SOM1 exposed" = "#009e73", "SOM1 sheltered" = "#e69f00",
+                               "SOM2 exposed" = "#009e73", "SOM2 sheltered" = "#e69f00")) +
+  theme_minimal() + scale_y_continuous(labels = scales::number_format(accuracy = 0.2)) +
+  geom_text(aes(label = Percentage), vjust = 1.5, colour = "white") + theme(axis.title.x = element_blank(), axis.title.y = element_blank(),axis.text.y = element_blank(),axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1), legend.position = "none",
+    plot.title = element_text(hjust = 1, vjust = 1)) + ylim(0, 100) + ggtitle("Fall")
+
+
+H2PG_interactions<-ggarrange(W, S, Z, F, common.legend = FALSE, align = "hv")
+
+
+
+
+
+#interactive effect of intertidal level:location and intertidal level:season
+tabyl(dfWinter_Zonation, Gymnophallus_sp._Bin, Location_intertidal_level) %>%
+  adorn_percentages("col") %>% adorn_pct_formatting(digits = 2)
+
+tabyl(dfFall_Zonation, Gymnophallus_sp._Bin, Location_intertidal_level) %>%
+  adorn_percentages("col") %>% adorn_pct_formatting(digits = 2)
+
+dataGH3W <- data.frame(
+  intertidal_level=c('SOM1 low', 'SOM1 mid','SOM1 high','SOM1 top','SOM2 low', 'SOM2 mid', 'SOM2 high','SOM2 top') ,  
+  Percentage=c( 62.96,35.00,66.67,55.56,46.15,47.62,56.67,56.52))
+
+dataGH3F <- data.frame(
+ intertidal_level=c('SOM1 low', 'SOM1 mid','SOM1 high','SOM1 top','SOM2 low', 'SOM2 mid', 'SOM2 high','SOM2 top') ,  
+  Percentage=c(67.44,61.11,53.66,48.65,57.50,46.34,52.50,57.14))
+
+W <- ggplot(dataGH3W, aes(x=factor(intertidal_level, level=c('SOM1 low','SOM1 mid','SOM1 high','SOM1 top','SOM2 low','SOM2 mid','SOM2 high','SOM2 top')), y = Percentage, fill = intertidal_level)) + 
+  geom_bar(stat = "identity") + 
+  scale_fill_manual(values = c('SOM1 low'="#009e73",'SOM1 mid'="#56b4e9",'SOM1 high'="#0072b2",'SOM1 top'="#808080",'SOM2 low'="#009e73",'SOM2 mid'="#56b4e9",'SOM2 high'="#0072b2",'SOM2 top'="#808080")) +
+  theme_minimal() + scale_y_continuous(labels = scales::number_format(accuracy = 0.2)) +
+  geom_text(aes(label = Percentage), vjust = 1.5, colour = "white") +
+  theme(axis.title.x = element_blank(),axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1), legend.position = "none",
+    plot.title = element_text(hjust = 1, vjust = 1))  +
+  ylim(0, 100) +ggtitle("Winter")+ ylab(expression("Prevalence" ~ italic(Gymnophallus~sp.)))
+
+
+F <- ggplot(dataGH3F, aes(x=factor(intertidal_level, level=c('SOM1 low','SOM1 mid','SOM1 high','SOM1 top','SOM2 low','SOM2 mid','SOM2 high','SOM2 top')), y = Percentage, fill = intertidal_level)) + 
+  geom_bar(stat = "identity") + scale_fill_manual(values = c('SOM1 low'="#009e73", 'SOM1 mid'="#56b4e9",'SOM1 high'="#0072b2",'SOM1 top'="#808080",'SOM2 low'="#009e73",'SOM2 mid'="#56b4e9",'SOM2 high'="#0072b2",'SOM2 top'="#808080")) +
+  theme_minimal() + scale_y_continuous(labels = scales::number_format(accuracy = 0.2)) +
+  geom_text(aes(label = Percentage), vjust = 1.5, colour = "white") +
+  theme(axis.title.x = element_blank(), axis.title.y = element_blank(),
+    axis.text.y = element_blank(),axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1), legend.position = "none",
+    plot.title = element_text(hjust = 1, vjust = 1)) + ylim(0, 100) +  ggtitle("Fall")
+
+
+
+H3GymnoP_interactions<-ggarrange(W, F, common.legend = FALSE, align = "hv")
+
+
+
+H1RRP_base
+H1GymnoP_base
+H2RRP_base
+H1GymnoP_base
+H4P_base
+H3P_base
+
+H1RRP_interactive
+H1GymnoP_interactive
+H2PRR_interactions
+H2PG_interactions
+H3RRP_interactions
+H3GymnoP_interactions
+
+
+
+````
+
 
